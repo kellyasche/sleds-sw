@@ -129,12 +129,12 @@ mn_counties <- st_read("/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasch
 
 # Prep data
 
-Okay, lets check out assessments. This is the entire assessment dataset, which I will first clean up and then join it with our master/NE graduate dataset.
+Okay, lets check out assessments. This is the entire assessment dataset, which I will first clean up and then join it with our master/SW graduate dataset.
 
 <br>
 
 ```{r ipeds original}
-assessments.original <- read_csv('/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Research/FY25-27/FY26/OHE Journey to meaningful employment/Data/SLEDS/Assessments/K12Assessment.csv')  %>%
+assessments.original <- read_csv('/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Research/FY25-27/FY26/OHE Journey to meaningful employment/Data/CRPD 2 (angelique.workman@state.mn.us)/K12Assessment.csv')  %>%
   mutate(PersonID = as.integer(PersonID),
          TestName = as.factor(TestName),
          Subject = as.factor(Subject),
@@ -276,7 +276,7 @@ write_csv(assessments.master, "Data/SLEDS/Masters/assessments_master.csv")
 
 Let's start by summarizing the english learners in the total dataset.
 
-In the master dataset 4.34% of the individuals were identified as English Learners at some point in the original data.
+In the master dataset 10% of the individuals were identified as English Learners at some point in the original data.
 
 <br>
 
@@ -299,10 +299,6 @@ datatable(el.summary.total,
 <br>
 
 Let's now see if there are any significant differences by RUCA category.
-
-The cross-tabs provides a very low p-value indicating that there are significant differences in the percentage of individuals in the dataset categorized as English learners.
-
-The percentage of English learners graduating from an entirely rural high schools and urban/town/rural high schools ar very similar - around 4.5% - and are higher than town/rural mix of 3.4%.
 
 <br>
 
@@ -339,12 +335,6 @@ CrossTable(master.7$Dem_Desc, master.7$english.learner, expected = TRUE, prop.t 
 # Summary of MCA
 
 Let's see what the MCA breakdown is by subject.
-
-Math: 67% met or exceeded standards
-
-Reading: 81% met or exceeded standards
-
-Science: 49% met or exceeded standards
 
 <br>
 
@@ -394,10 +384,6 @@ From here we will break down the data and see if there are significant differenc
 ## MCA - Math
 
 We will start with analyzing math and RUCA categories.
-
-The p-value from the cross-tabs indicate that there is a relationship between RUCA categories and the grades received in the MCA-Math test.
-
-I'm honestly not seeing a whole lot worth mentioning though.
 
 <br>
 
@@ -452,8 +438,6 @@ CrossTable(master.7$Dem_Desc, master.7$MCA.M, expected = TRUE, prop.t = FALSE, p
 
 Next lets analyze reading and RUCA categories.
 
-The p-value from the cross-tabs indicate that there is a relationship between RUCA categories and the grades received in the MCA-Reading test. However, I'm seeing every little difference here.
-
 <br>
 
 ::: panel-tabset
@@ -505,8 +489,6 @@ CrossTable(master.7$Dem_Desc, master.7$MCA.R, expected = TRUE, prop.t = FALSE, p
 ## MCA - Science
 
 Next lets analyze science and RUCA categories.
-
-The p-value from the cross-tabs indicate that there is a relationship between RUCA categories and the grades received in the MCA-Science test. But again, I'm not seeing anything worth mentioning.
 
 <br>
 
