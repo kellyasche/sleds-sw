@@ -134,7 +134,7 @@ This dataset is of all the individuals that have graduated from a high school in
 <br>
 
 ```{r import original dataset}
-enrollment.original <- read_csv("/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Research/FY25-27/FY26/OHE Journey to meaningful employment/Data/SLEDS/K12 Enrollment/K12Enrollment.csv")  %>%
+enrollment.original <- read_csv('/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Research/FY25-27/FY26/OHE Journey to meaningful employment/Data/CRPD 2 (angelique.workman@state.mn.us)/K12Enrollment.csv')  %>%
   mutate(PersonID = as.integer(PersonID),
          K12OrganizationID = as.integer(K12OrganizationID)) %>%
   drop_na(PersonID)
@@ -148,12 +148,12 @@ kable(names(enrollment.original))
 
 In the dataset there are `r comma(nrow(enrollment.original), accuracy = 1)` observations along with `r comma(ncol(enrollment.original), accuracy = 1)` columns. Each observation does not represent a unique, unduplicated individual, but rather a unique status for the individual. For example, one individual can have multiple observations if they changed schools, for each school year, or if their economic status changed in the middle of a school year.
 
-Next we need to create a dataset that only has students who graduated from a high school located in EDR 3. To do that, we will need to join up with the organization spreadsheet.
+Next we need to create a dataset that only has students who graduated from a high school located in the Southwest research region - EDRs 6W, 6E, and 8. To do that, we will need to join up with the organization spreadsheet.
 
 <br>
 
 ```{r k12org original data}
-k12.org.original <- read_csv("~/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Research/FY25-27/FY26/OHE Journey to meaningful employment/Data/SLEDS/K12 Orgs/K12Organization-updated.csv") %>%
+k12.org.original <- read_csv('/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Research/FY25-27/FY26/OHE Journey to meaningful employment/Data/CRPD 2 (angelique.workman@state.mn.us)/K12Organization_cleaned.csv') %>%
   distinct(K12OrganizationID, .keep_all = TRUE) %>%
   drop_na(K12OrganizationID) %>%
   mutate(K12OrganizationID = as.integer(K12OrganizationID)) %>%
@@ -177,10 +177,16 @@ My goal is to join my standardized region and county code data with this documen
 <br>
 
 ```{r k12org joining county and regional data}
+SiteCountyCode <- read_csv("~/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Research/FY25-27/FY26/OHE Journey to meaningful employment/Data/SiteCountyCodes.csv")
+
 k12.org.master <- k12.org.original %>%
-  select(K12OrganizationID, County, OrganizationName) %>%
-  rename(county.name = 2) %>%
-  mutate(county.name = str_replace(county.name, " County", "")) %>%
+  left_join(SiteCountyCode[,c(1,2)], by = c("SiteCountyCode" = "Code")) %>%
+  drop_na(SiteCountyCode) %>%
+  rename(county.name = `Code definition`) %>%
+  select(K12OrganizationID, OrganizationName, county.name) %>%
+  mutate(county.name = str_replace(county.name, " County", ""),
+         county.name = str_replace(county.name, "Saint Louis", "St. Louis")) %>%
+  filter(county.name != "Unknown") %>%
   select(K12OrganizationID, OrganizationName, county.name) %>%
   left_join(counties.regions.1, by = c("county.name" = "Name")) %>%
   select(-Dem_RUCA, -mif, -edr.simple)
@@ -188,6 +194,7 @@ k12.org.master <- k12.org.original %>%
 kable(head(k12.org.master))
 
 kable(names(k12.org.master))
+
 ```
 
 <br>
@@ -197,20 +204,20 @@ Now I should be able to join this dataset with the enrollment data to figure out
 <br>
 
 ```{r join enrollment data with org data}
-enrollment.org.ne <- enrollment.original %>%
+enrollment.org.sw <- enrollment.original %>%
   left_join(k12.org.master, by = "K12OrganizationID") %>%
   select(-statefp) %>%
-  filter(edr == "EDR 3 - Arrowhead")
+  filter(planning.region == "Southwest") 
 
-kable(head(enrollment.org.ne))
+kable(head(enrollment.org.sw))
 
-kable(names(enrollment.org.ne))
+kable(names(enrollment.org.sw))
 
 ```
 
 <br>
 
-The dataset now has `r comma(nrow(enrollment.org.ne))` instances that provide a number of characteristics about an individuals enrollment.
+The dataset now has `r comma(nrow(enrollment.org.sw))` instances that provide a number of characteristics about an individuals enrollment.
 
 My goal is to end up with a dataset where each observation (row) represents a unique (unduplicated) individual that's tied to the school from which they graduated. Here's how I will do that.
 
@@ -237,7 +244,7 @@ This "graduates list" will be the list on which we will bind all the other varia
 <br>
 
 ```{r k12enrollment StatusEnd}
-graduates <- enrollment.org.ne %>%
+graduates <- enrollment.org.sw %>%
   filter(StatusEnd %in% c(8,9)) %>%
   mutate(grad.year = str_sub(TimeID, 1, 4),
          grad.year = as.integer(grad.year),
@@ -262,7 +269,7 @@ Next we need to create new columns for the variables that will indicate a certai
 ```{r K12Enrollment creating new columns}
 
 # Lets start with economic status indicator
-k12.enr.esi.indicator <- enrollment.org.ne %>%
+k12.enr.esi.indicator <- enrollment.org.sw %>%
   select(PersonID, EconomicStatusIndicator) %>%
   group_by(PersonID) %>%
   mutate(economic.status.code = ifelse(EconomicStatusIndicator %in% c(1,2,4,5), 1, 0),
@@ -274,7 +281,7 @@ k12.enr.esi.indicator <- enrollment.org.ne %>%
 
 # PSEO
 
-k12.enr.pseo.indicator <- enrollment.org.ne%>%
+k12.enr.pseo.indicator <- enrollment.org.sw%>%
   select(PersonID, PostSecondaryEnrollmentOptionsIndicator, PSEOConcurrentEnrollmentIndicator) %>%
   mutate(PostSecondaryEnrollmentOptionsIndicator = ifelse(PostSecondaryEnrollmentOptionsIndicator == "Y", 1, 0),
          PSEOConcurrentEnrollmentIndicator = ifelse(PSEOConcurrentEnrollmentIndicator == "Y", 1, 0)) %>%
@@ -287,7 +294,7 @@ k12.enr.pseo.indicator <- enrollment.org.ne%>%
 
 # Special Ed status
 
-k12.enr.spced.indicator <- enrollment.org.ne %>%
+k12.enr.spced.indicator <- enrollment.org.sw %>%
   select(PersonID, SpecialEdStatus) %>%
   mutate(SpecialEdStatus.code = ifelse(SpecialEdStatus %in% c(4,5,6,7,8,9), 1, 0)) %>%
   group_by(PersonID) %>%
@@ -298,7 +305,7 @@ k12.enr.spced.indicator <- enrollment.org.ne %>%
 
 # Home Primary Language
 
-k12.enr.homeprimlang.indicator <- enrollment.org.ne %>%
+k12.enr.homeprimlang.indicator <- enrollment.org.sw %>%
   select(PersonID, HomePrimaryLanguage) %>%
   mutate(HomePrimaryLanguage.code = ifelse(HomePrimaryLanguage == 11, 0, 1)) %>%
   group_by(PersonID) %>%
@@ -309,7 +316,7 @@ k12.enr.homeprimlang.indicator <- enrollment.org.ne %>%
 
 # Race
 
-k12.enr.race <- enrollment.org.ne %>%
+k12.enr.race <- enrollment.org.sw %>%
   select(PersonID, RaceEthnicity) %>%
   mutate(RaceEthnicity = ifelse(RaceEthnicity == 0, "Unknown",
                                 ifelse(RaceEthnicity == 1, "AI",
@@ -369,7 +376,7 @@ Below is the percentage of total observations that;
 -   Participated in a PSEO course at some point in the dataset.
 -   Pct non white
 
-As expected, nearly half (49.3%) of the observations are female. Over a third (36.8%) of the observations have been eligible for free or reduced lunch at some point in the dataset. Also, over a third (38.6%) of observations participated in a PSEO course. There is a large percentage identifying as non-white with 26.9%, while 15.3% were categorized as needing special education, 1.2% homelss and 0.8% said they has a non-english speaker at home.
+As expected, nearly half (49.2%) of the observations are female. Over a third (37%) of the observations have been eligible for free or reduced lunch at some point in the dataset. Also, over a third (33.4%) of observations participated in a PSEO course. There is a large percentage identifying as non-white with 34.1%, while 13.8% were categorized as needing special education, 10% with a non-english speaker in the home, 2.9% with limited english proficiency and 0.5% homeless.
 
 <br>
 
