@@ -129,12 +129,12 @@ mn_counties <- st_read("/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasch
 
 # Data prep
 
-Now I'm going to prep the CTE demographics dataset to join with the master. I will first load the entire CTE demographics dataset, clean it up, and then join with my master/NE graduate dataset.
+Now I'm going to prep the CTE demographics dataset to join with the master. I will first load the entire CTE demographics dataset, clean it up, and then join with my master/SW graduate dataset.
 
 <br>
 
 ```{r cte demographics original}
-cte.demographics.original <- read_csv('/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Research/FY25-27/FY26/OHE Journey to meaningful employment/Data/SLEDS/CTEDemographics/CTEDemographic.csv')  %>%
+cte.demographics.original <- read_csv('/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Research/FY25-27/FY26/OHE Journey to meaningful employment/Data/CRPD 2 (angelique.workman@state.mn.us)/CTEDemographic.csv')  %>%
   mutate(PersonID = as.integer(PersonID)) 
 
 kable(head(cte.demographics.original))
@@ -226,8 +226,6 @@ We will summarize the CTE demographics data by rural-ness and region to see if t
 
 First, lets see what percentage of the graduates by cte demographics categories.
 
-The table below shows that of the total graduates from Northeast high schools, nearly a third (31%) were a CTE concentrator or completor, while 28% were just a participant and 42% took no CTE courses at all.
-
 <br>
 
 ```{r summary cte demographics total}
@@ -243,7 +241,7 @@ datatable(cte.dem.summary.total, class = "cell-border stripe", filter = "top", r
 
 <br>
 
-The cross-tabs show a significant difference between the percentage of students by categorization and RUCA categories. The more rural the district, the higher the percentages of the graduates that are either concentrators or completors, or took at least one CTE course.
+The cross-tabs show a significant difference between the percentage of students by categorization and RUCA categories.
 
 <br>
 
@@ -272,8 +270,6 @@ CrossTable(master.5$Dem_Desc, master.5$cte.achievement, expected = TRUE, prop.t 
 <br>
 
 Lets take a look at the county map.
-
-The cross tabulations show that there is a statistically significant difference in the percent of graduates in each CTE category by county. The map confirms that the more rural counties typically have a higher percentage of graduates that either concentrated or participated in CTE. The higher percentage of graduates that had no CTE were St. Louis County districts.
 
 <br>
 
@@ -331,8 +327,6 @@ CrossTable(master.5$county.name, master.5$cte.achievement, expected = TRUE, prop
 <br>
 
 The next thing to check is to determine whether there is a significant difference by year.
-
-Interestingly, the percentage of graduates that had no CTE were hovering around 50% until 2020 when it completely flipped. This may indicate a change in CTE offerings at some of these schools during that time.
 
 <br>
 
