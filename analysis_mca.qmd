@@ -1,0 +1,862 @@
+---
+title: "Multiple Correspondence Analysis"
+editor: visual
+---
+
+```{r library, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(sf)
+library(ggrepel)
+library(scales)
+library(shiny)
+library(shinycssloaders)
+library(ggiraph)
+library(kableExtra)
+library(rmapshaper)
+library(cowplot)
+library(DT)
+library(htmlwidgets)
+library(RColorBrewer)
+library(readxl)
+library(janitor)
+library(lubridate)
+library(systemfonts)
+reset_font_cache()
+library(ggtext)
+library(gmodels)
+library(leaps)
+library(bestglm)
+library(fastDummies)
+library(car)
+library(FactoMineR)
+library(factoextra)
+library(psych)
+library(corrplot)
+```
+
+```{r themes and shapefiles, include=FALSE}
+theme_bar <- theme_bw() +
+  theme(panel.grid.major = element_line(color = "grey70", linewidth  = 0.1),
+        panel.grid.minor = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.key.size = unit(1, "lines"),
+        legend.margin = margin(0,0,0,0),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        text = element_text(family = "Arial") ,
+        plot.title.position = "plot",
+        plot.title = element_text(face = "bold"))
+
+theme_line <- theme_bw() +
+  theme(legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.text = element_text(margin = margin(l = 2)),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(color = "grey70", linewidth = 0.1),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial") ,
+        plot.title.position = "plot",
+        plot.title = element_text(face = "bold"))
+
+
+theme_sf <- theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        panel.background = element_blank(),
+        panel.grid.major = element_line(color = "white"),
+        panel.border = element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial") ,
+        plot.title.position = "plot",
+        plot.title = element_text(face = "bold"))
+
+regions <- read_csv("/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Data Prep/R Projects/Join docs/county_regions.csv") %>%
+    select(5,6) %>%
+    unique() %>%
+    mutate(edr = str_replace(edr, "  ", " "),
+           planning.region = str_replace(planning.region, " Minnesota", ""),
+           planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+           edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+counties.regions <- read_csv("/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Data Prep/R Projects/Join docs/county_regions.csv") %>%
+  rename(mif = `MIF Region`) %>%
+  mutate(countyfp = formatC(countyfp, width = 3, flag = "0"),
+         Name = str_to_title(Name),
+         Name = str_replace(Name, "Q", "q"),
+         Name = str_replace(Name, "Of The", "of the"),
+         Name = str_replace(Name, "Mcleod", "McLeod"),
+         Dem_Desc = ifelse(Name == "Minnesota", "Minnesota", Dem_Desc) ,
+         edr = str_replace(edr, "  ", " "),
+         planning.region = str_replace(planning.region, " Minnesota", ""),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"),
+         mif = ifelse(is.na(mif), "TC", mif),
+         mif = as.factor(mif),
+         mif = fct_relevel(mif, "NW", "NE", "WC", "EC", "SW", "SE", "TC"),
+Dem_Desc = fct_relevel(Dem_Desc, "Entirely rural", "Town/rural mix", "Urban/town/rural mix", "Entirely urban"))
+
+counties.regions.1 <- counties.regions %>%
+  mutate(statefp = "27",
+         project.pr = ifelse(edr %in% c("EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 4 - West Central"), "Northwest",
+                             ifelse(edr == "EDR 3 - Arrowhead", "Northeast",
+                                    ifelse(edr %in% c("EDR 5 - North Central", "EDR 7E- East Central", "EDR 7W- Central"), "Central",
+                                           ifelse(edr %in% c("EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 8 - Southwest"), "Southwest",
+                                                  ifelse(edr %in% c("EDR 9 - South Central", "EDR 10 - Southeast"), "Southern", as.character(planning.region)))))),
+         project.pr = fct_relevel(project.pr, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southern"))
+
+
+
+color.ruca <- c("Entirely rural" = "#009933", "Town/rural mix" = "#99CC33", "Urban/town/rural mix" = "#CC9966", "Entirely urban" = "#754C29", "Minnesota" = "black")
+
+color.pr <- c("Northwest" = 	"#4575b4", "Northeast" = "grey", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black")
+
+color.edr <- c("EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365", "Minnesota" = "black")
+
+color.edr.simple <- c("EDR 1" = "#b3cde3", "EDR 2" = "#8c96c6", "EDR 3" = "#fe9929", "EDR 4" = "#8856a7", "EDR 5" = "#810f7c", "EDR 6E" = "#e5f5f9", "EDR 6W" = "#bdc9e1", "EDR 7E" = "#99d8c9", "EDR 7W" = "#2ca25f", "EDR 8" = "#74a9cf", "EDR 9" = "#0570b0", "EDR 10" = "#d7301f", "EDR 11" = "#d8b365", "Minnesota" = "black")
+
+color.pr.edr <- c ("Northwest" = "#4575b4","Northeast" = "#e0f3f8", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black", "EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365")
+
+mn_counties <- st_read("/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Data Prep/R Projects/Shapefiles/County shapefiles/MNCounties_MNDOT.shp", quiet = TRUE) %>%
+  ms_simplify(keep = .01, keep_shapes = TRUE) %>%
+  rename(countyfp = FIPS_CODE)
+```
+
+```{r master original}
+master.original <- read.csv("Data/SLEDS/Masters/Master.csv") %>%
+  drop_na(Dem_Desc)
+
+kable(names(master.original))
+```
+
+<br>
+
+The purpose of multiple correspondence analysis is to examine any patterns among the independent variables with the goal of eliminating variables that are redundant - essentially two variables that are explaining the same thing. This type of analysis is not meant to confirm any predictions, but rather explore the data and make decisions on what data should be included in the prediction model.
+
+<br>
+
+# Independent variables
+
+The master dataset is composed of `r comma(nrow(master.original))` rows. Each row represents an individual that graduated (StatusEnd = 8 or 9) from a high school located in the Northeasy region (defined by project) between 2008 and 2023.
+
+The master dataset is also composed of `r comma(ncol(master.original))` columns. Columns mainly represent various socio-economic, demographic, and educational career characteristics of the individual as well as a few characteristics of the high school geographic from which they graduated (i.e. county unemployment). The variables for each individual is composed of a mix of categorical and numerical values. In this analysis, we will only be exploring categorical data.
+
+Here is a list of all the categorical variables we will be examining in this analysis along with a description of each.
+
+<br>
+
+```{r primary independent variables}
+qual.var.names <-  c("PersonID", "hs.grad.year", "Gender", "grad.year.covid", "LimitedEnglishProficiencyIndicator", "HomelessIndicator", "economic.status", "pseo.participant", "SpecialEdStatus", "non.english.home", "RaceEthnicity", "Dem_Desc", "edr", "took.ACT", "ap.exam", "cte.achievement", "english.learner", "sat.taken", "attended.ps.within.first.year.hsgrad", "attended.ps", "ps.grad", "ps.grad.InstitutionSector", "highest.cred.level", "ps.grad.location")
+
+quan.var.names <- c("total.cte.courses.taken", "cte.0", "cte.1", "cte.2", "cte.3", "cte.4", "cte.5", "cte.6", "cte.7", "cte.8", "cte.9", "cte.10", "cte.11", "cte.12", "cte.14", "cte.21", "cte.22", "cte.23", "cte.24", "cte.25", "cte.26", "avg.cte.intensity", "MCA.M", "MCA.R", "MCA.S", "avg.unemp.rate", "wages.3year.avg", "avg.wages.pct.state")
+
+independent.var.names <- c("hs.grad.year", "Gender", "LimitedEnglishProficiencyIndicator", "HomelessIndicator", "economic.status", "pseo.participant", "SpecialEdStatus", "non.english.home", "RaceEthnicity", "Dem_Desc", "edr", "took.ACT", "ap.exam", "total.cte.courses.taken", "cte.achievement", "avg.cte.intensity", "MCA.M", "MCA.R", "MCA.S", "sat.taken", "attended.ps", "ps.grad", "highest.cred.level", "ps.grad.location", "avg.unemp.rate", "wages.3year.avg")
+
+cte.cc.var.names <- c("cte.1", "cte.2", "cte.3", "cte.4", "cte.5", "cte.6", "cte.7", "cte.8", "cte.9", "cte.10", "cte.11", "cte.12", "cte.14", "cte.21", "cte.22", "cte.23", "cte.24", "cte.25")
+
+ind.qual.var <- master.original %>%
+  select(all_of(`qual.var.names`)) %>%
+  mutate_at(2:ncol(.), as.factor)
+
+```
+
+<br>
+
+-   **Demographics**
+    -   *`grad.year`:* this is the year they graduated high school.
+    -   `grad.year.covid`: this is a value representing whether the individual graduated high school before 2020 or after 2021.
+        -   Pre-covid grad
+        -   Post-covid grad
+    -   *`Gender`:*
+        -   M = male
+        -   F = female
+    -   *`RaceEthnicity`:*
+        -   AI = American Indian
+        -   Asian/PI = Asian or Pacific Islander
+        -   Black = African American
+        -   Hispanic = any race any Hispanic or Latino
+        -   Unknown = unknown race or ethnicity
+        -   White = Caucasian and not Hispanic
+    -   *`LimitedEnglishProficiencyIndicator`:*
+        -   Y = identified as having limited English proficiency at some point between 10th and 12th grade, otherwise N.
+    -   *`HomelessIndicator`:*
+        -   Y = the individual was identified as homeless at any point between 10th and 12th grade, otherwise N.
+    -   *`economic.status`:*
+        -   1 = the individual was eligible for free or reduced lunch (codes 1,2,4,5) at any point between 10th and 12th grade, otherwise 0.
+    -   *`SpecialEdStatus`:*
+        -   1 = the individual required special education services at some point between 10th and 12th grade, otherwise 0.
+    -   *`non.english.home`:*
+        -   1 = the individual was identified as having English as not the primary language spoken at home between 10th and 12th grad, otherwise 0.
+    -   *`english.learner`:*
+        -   1 = the individual was identified as an "English learner" at least one time between 10th and 12th grade, otherwise 0.
+
+<br>
+
+-   **High school characteristics**
+    -   *`Dem_Desc`:* the RUCA category of the high school from which the individual graduated.
+
+<br>
+
+-   **High school accomplishments**
+    -   *`pseo.participant`:*
+        -   1 = the individual participated in a PSEO course sometime between 10th and 12th grade, otherwise 0. There are also NA values in this due to missing data.
+    -   *`took.ACT:`* whether an individual took the ACT exam
+        -   Yes
+        -   No
+    -   *`ap.exam`:*
+        -   1 = the individual took an AP exam at some point,
+        -   0 = the individual did not take an AP exam.
+    -   *`cte.achievement`:* three indicators with
+        -   "CTE concentrator or completor" = self-explanatory,
+        -   "CTE participant" = they took a CTE course but was not a concentrator or completor, and,
+        -   "No CTE" = they didn't take a CTE course
+    -   *`sat.taken`:*
+        -   1 = individual took the SAT at some point between 10th and 12th grade, otherwise 0.
+
+<br>
+
+-   **Post-secondary**
+    -   *`attended.ps.within.first.year.hsgrad`:* the individual attended a post-secondary institution within the first year of graduating high school.
+        -   Yes = Attended PS within first year
+        -   No = Attended PS but not within first year
+        -   NA = never attended PS or attended but only to withdraw.
+    -   *`attended.ps`:*
+        -   Yes = the individual attended a post-secondary education institution.
+        -   No = never attended post-secondary, or attended but only "W" or "D".
+    -   *`ps.grad`:*
+        -   Yes = Graduated from a post-secondary institution by 2023
+        -   Attending ps = attending a post-secondary institution as of 2023
+        -   No = Not attending a post-secondary institution nor graduated from one as of 2023.
+    -   *`ps.grad.InstitutionSector`:* the institution sector of the post-secondary school from which an individual has graduated.
+        -   1 - Public, 4-year or above
+        -   2 - Private not-for-profit, 4-year or above
+        -   3 - Private for-profit, 4-year or above
+        -   4 - Public, 2-year
+        -   5 - Private not-for-profit, 2-year
+        -   6 - Private for-profit, 2-year
+        -   7 - Public, less-than 2-year
+        -   8 - Private not-for-profit, less-than 2-year
+        -   9 - Private for-profit, less-than 2-year
+        -   10 - multiple sectors (if attended multiple institutions)
+        -   99 - Sector unknown (not active)
+        -   "Never attended ps" = the individual never attended a post-secondary institution
+        -   "Did not grad" = the individual attended a post-secondary institution but did not graduate.
+    -   *`highest.cred.level`:* an identifier of the highest credential earned by the PersonID. The categories are;
+        -   Did not graduate ps
+        -   Attending ps
+        -   Less than associate degree
+        -   Associate degree
+        -   Bachelors degree
+        -   Higher than bachelors degree.
+    -   `ps.grad.location`: this is the following;
+        -   ps.grad.region: graduated from a college in the same region as their high school, but not same EDR
+        -   ps.grad.MN: graduated from a college in MN but not same region or EDR
+        -   ps.grad.outside: graduated from a college outside MN, but not in region or EDR or Minnesota
+        -   Did not grad: attended but did not graduate college or attended but did not graduate
+        -   Attending ps: Currently attending post-secondary at grad.year.x
+
+<br>
+
+# Frequencies
+
+First, lets check to see there aren't any variable categories with very low frequencies (less than 2%) which can distort the analysis.
+
+The tables below shows there are a few to be concerned about.
+
+<br>
+
+```{r ind qual frequencies}
+ind.qual.freq <- ind.qual.var %>%
+  gather(key = "key", value = "value", 2:ncol(.)) %>%
+  group_by(key, value) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  mutate(pct = n / nrow(master.original)) %>%
+  mutate(data_id = seq(n()))
+
+ind.qual.freq.plot <- ggplot(ind.qual.freq, aes(value, n)) +
+  facet_wrap(~key, ncol = 4, scales = "free") +
+  geom_col_interactive(position = "dodge", aes(data_id = data_id, tooltip = paste(key, "\n", value, "\nN = ", comma(n, accuracy = 1), "\nPercent: ", percent(pct, accuracy = .1), sep = ""))) +
+  labs(x="", y = "", color="", title = "N for each independent, categorical variable")+
+  scale_y_continuous(labels=scales::comma)+
+  theme_bar+
+  scale_fill_manual(values = brewer.pal(n = 5, "RdYlBu"),
+                    guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 14),
+        axis.text.x = element_text(angle = 25, hjust = .9))
+
+
+girafe(ggobj = ind.qual.freq.plot, width_svg = 10, height_svg = 20) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_sizing(rescale = FALSE))      
+
+```
+
+<br>
+
+Due to these low frequencies, I'm going to do the following;
+
+-   `sat.taken`: drop
+-   `HomelessIndicator`: drop
+-   *`LimitedEnglishProficiency`*: drop
+-   `ps.grad.InstitutionSector`: combine categories 3, 5, 6, 7, 8 and 9 into one category. This means that the following institution sectors will be relabeled as "11";
+    -   3 - Private for-profit, 4-year or above
+    -   5 - Private, not-for-profit 2-year
+    -   6 - Private for-profit, 2-year
+    -   7 - Public, less than 2-year
+    -   8 - Private not-for-profit less than 2-year
+    -   9 - Private for-profit, less-than 2-year
+-   `hs.grad.year`: drop
+-   `grad.year.covid`: drop
+
+<br>
+
+```{r updated ind qual var}
+master.ind.qual.var <- ind.qual.var %>%
+  select(-PersonID, -sat.taken, -HomelessIndicator, -LimitedEnglishProficiencyIndicator, -hs.grad.year, -grad.year.covid) %>%
+  mutate(ps.grad.InstitutionSector = ifelse(ps.grad.InstitutionSector %in% c("3", "5", "6", "7", "8", "9"), "11", as.character(ps.grad.InstitutionSector))) 
+
+```
+
+<br>
+
+# MCA
+
+For the MCA analysis, I'm going to group these variables together to make sure that they aren't explaining the same thing. The goal is to eliminate any variables that are essentially the same. This will help me make my model smaller when analyzing the pathways taken after graduating high school.
+
+Here are the groupings I'm going to use;
+
+-   Demographics
+    -   `Gender`
+    -   `economic.status`
+    -   `SpecialEdStatus`
+    -   `RaceEthnicity`
+    -   `english.learner`
+    -   `non.english.home`
+-   High school characteristics
+    -   `Dem_Desc`
+    -   `edr`
+-   High school accomplishments
+    -   `pseo.participant`
+    -   `took.ACT`
+    -   `ap.exam`
+    -   `cte.achievement`
+-   Post-secondary
+    -   `attended.ps`
+    -   `ps.grad`
+    -   `ps.grad.InstitutionSector`
+    -   `highest.cred.level`
+    -   `ps.grad.location`
+
+<br>
+
+## Demographics
+
+Below are the variables that are categorized as "demographics".
+
+-   Demographics
+    -   `Gender`
+    -   `economic.status`
+    -   `SpecialEdStatus`
+    -   `RaceEthnicity`
+    -   `english.learner`
+    -   `non.english.home`
+
+When I initially did this analysis, the category "Unknown" in the RaceEthnicity variable was throwing off the analysis.
+
+```{r demographics prep, echo=TRUE}
+demographics <- master.ind.qual.var %>%
+  select(Gender, economic.status, SpecialEdStatus, RaceEthnicity, english.learner, non.english.home)  %>%
+  filter(RaceEthnicity != "Unknown")
+
+kable(head(demographics))
+
+kable(names(demographics))
+```
+
+<br>
+
+As expected, we have `r comma(nrow(demographics))` individuals in the dataset.
+
+<br>
+
+### MCA analysis
+
+### Eigenvalues - Demographic Variables
+
+**Overview** The MCA on demographic variables produced 9 dimensions, collectively explaining 100% of the variance in the data.
+
+**Dimension Retention** Using the average eigenvalue threshold (1/k = 0.167), Dimensions 1-5 are recommended for retention, collectively explaining 74.6% of the total variance. Dimension 1 is clearly the strongest, explaining 27.8% of variance, with a notable drop-off to subsequent dimensions which each explain approximately 11%.
+
+**Notes** The relatively even spread of variance across Dimensions 2-5 suggests that demographic variation in this dataset is multidimensional, with no single dominant second axis of variation.
+
+<br>
+
+```{r demographics eigenvalues}
+demographics.mca <- FactoMineR::MCA(demographics, graph = FALSE)
+
+eig.val <- get_eigenvalue(demographics.mca)
+
+eig.val
+
+
+```
+
+<br>
+
+#### COS2 - Demographic Variables
+
+**Overview** COS2 measures the quality of representation of each variable category across the five retained dimensions. Values closer to 1 indicate that a category is well represented in the retained dimensional space.
+
+**Well Represented Categories** Race/ethnicity categories are the best represented across the five dimensions. Black (0.970), Asian/PI (0.930), Hispanic (0.827), and AI (0.829) all show very strong representation, indicating these categories are well captured by the retained dimensions. The language variables non.english.home (0.823) and White (0.750) are also well represented.
+
+**Moderately Represented Categories** SpecialEdStatus (0.661), english.learner (0.647), and Gender (0.611) show moderate representation, suggesting some variation in these variables extends beyond the five retained dimensions.
+
+**Weakest Represented Categories** economic.status is the weakest represented variable at 0.437, suggesting that economic variation among students is not well captured by the five retained dimensions and may operate somewhat independently of other demographic factors.
+
+**Notes** The expected symmetry between binary category pairs (e.g., economic.status_0 and economic.status_1) is present throughout, confirming the technical integrity of the MCA results.
+
+\<br\>
+
+```{r demogrpahics mca correlation between variables}
+table <- demographics.mca$var$cos2 %>%
+  as.data.frame() %>%
+  select(`Dim 1`, `Dim 2`, `Dim 3`, `Dim 4`, `Dim 5`) %>%
+  mutate(total = `Dim 1` + `Dim 2` + `Dim 3` + `Dim 4` + `Dim 5`) 
+  
+datatable(table) %>%
+  formatCurrency(1:6, "", digits = 3)
+
+
+fviz_cos2(demographics.mca, choice = "var", axes = 1:5)
+
+```
+
+<br>
+
+#### Contributions - Demographic Variables
+
+**Overview** Contributions measure how much each variable category drives each retained dimension. Categories with higher contributions are the primary drivers of that dimension's axis of variation.
+
+**Dimension 1 - English Language Learner / Hispanic Axis** Dimension 1 is primarily driven by non.english.home_1 (27.2%), english.learner_1 (22.7%), and Hispanic (17.1%), indicating this axis captures variation among students who speak a non-English language at home, are English language learners, and are of Hispanic ethnicity. These three categories together account for over 67% of Dimension 1.
+
+**Dimension 2 - Special Education / Gender Axis** Dimension 2 is dominated by SpecialEdStatus_1 (41.6%), with secondary contributions from Gender (F: 11.4%, M: 11.1%), suggesting this axis captures variation among students with special education status alongside an independent gender gradient.
+
+**Dimension 3 - American Indian / Gender Axis** Dimension 3 is primarily driven by AI (48.9%) with notable secondary contributions from Gender (F: 14.3%, M: 14.0%), suggesting this axis captures variation unique to American Indian students alongside a gender gradient.
+
+**Dimension 4 - Multi-Minority Race/Ethnicity Axis** Dimension 4 is shared across Black (33.8%), Hispanic (26.7%), and Asian/PI (19.1%) and AI (18.6%), suggesting this dimension captures a broader pattern of variation among minority race/ethnicity groups.
+
+**Dimension 5 - Black / Asian/PI Axis** Dimension 5 is primarily driven by Black (46.6%) and Asian/PI (41.5%), suggesting this dimension captures residual variation that distinguishes these two groups from other minority race/ethnicity categories.
+
+**Notes** The removal of unknown race/ethnicity individuals has produced a notably cleaner dimensional structure, particularly for Dimensions 3-5 which now tell a more interpretable story of variation among specific minority race/ethnicity groups.
+
+<br>
+
+```{r demographics mca contribution}
+table <- demographics.mca$var$contrib %>%
+  as.data.frame() %>%
+  mutate(id = seq(n())) %>%
+  select(id, `Dim 1`, `Dim 2`, `Dim 3`, `Dim 4`, `Dim 5`) %>%
+  mutate(`Dim 1` = `Dim 1` / 100,
+         `Dim 2` = `Dim 2` / 100,
+         `Dim 3` = `Dim 3` / 100,
+         `Dim 4` = `Dim 4` / 100,
+         `Dim 5` = `Dim 5` / 100)
+
+datatable(table) %>%
+  formatPercentage(2:6, digits = 1)
+  
+
+```
+
+<br>
+
+#### Summary - Demographic Variables
+
+Multiple Correspondence Analysis on the demographic variables produced five retained dimensions explaining 74.6% of the total variance. Dimension 1 captured an English language learner / Hispanic axis, driven by non.english.home, english.learner, and Hispanic ethnicity. Dimension 2 captured a special education / gender axis, Dimension 3 an American Indian / gender axis, and Dimensions 4 and 5 captured variation among minority race/ethnicity groups.
+
+Overall, the MCA revealed that most demographic variables are capturing distinct and meaningful axes of variation, with the exception of some expected overlap between the language variables and Hispanic ethnicity. Given that this overlap is conceptually expected in a Southwest Minnesota context and that each variable retains some independent information, no demographic variables were eliminated following MCA.
+
+Variables to eliminate:
+
+-   None
+
+<br>
+
+## High school characteristics
+
+Below are the variables that are categorized as "high school characteristics".
+
+-   High school characteristics
+    -   `Dem_Desc`
+    -   `edr`
+
+```{r hs characteristics prep, echo=TRUE}
+hs.char <- master.ind.qual.var %>%
+  select(Dem_Desc, edr) 
+
+kable(head(hs.char))
+
+kable(names(hs.char))
+```
+
+<br>
+
+We have `r comma(nrow(demographics))` individuals in the dataset.
+
+<br>
+
+### MCA analysis
+
+#### Eigenvalues - High School Characteristics
+
+**Overview** The MCA on high school characteristics variables produced 4 dimensions, collectively explaining 100% of the variance in the data.
+
+**Dimension Retention** Using the average eigenvalue threshold (1/k = 0.500), Dimensions 1-2 are recommended for retention, collectively explaining 63.0% of the total variance. Dimension 1 is the strongest, explaining 34.1% of variance, with Dimension 2 explaining an additional 28.9%.
+
+**Notes** The relatively balanced explanation of variance across Dimensions 1 and 2 suggests that the two geographic variables, Dem_Desc and edr, are capturing distinct but complementary axes of geographic variation in the dataset.
+
+<br>
+
+```{r hs characteristics eigenvalues}
+hs.char.mca <- FactoMineR::MCA(hs.char, graph = FALSE)
+
+eig.val <- get_eigenvalue(hs.char.mca)
+
+eig.val
+```
+
+<br>
+
+#### COS2 - High School Characteristics
+
+**Overview** COS2 measures the quality of representation of each variable category across the two retained dimensions. All categories show adequate representation with total COS2 values ranging from 0.588 to 0.681.
+
+**Dimension 1 - Urban/Southwest Central Axis** Urban/town/rural mix (0.671) and EDR 6E Southwest Central (0.629) load most strongly on Dimension 1, suggesting this axis captures variation associated with more urban and centrally located communities.
+
+**Dimension 2 - Rural/Southwest Axis** Entirely rural (0.527) and EDR 8 Southwest (0.461) load most strongly on Dimension 2, suggesting this axis captures variation associated with more rural and southwestern communities.
+
+**Notes** The clean separation of categories across the two dimensions, with Dem_Desc and edr categories each contributing to both dimensions, confirms that these two geographic variables are capturing distinct but complementary axes of geographic variation.
+
+```{r hs characteristics mca correlation between variables}
+table <- hs.char.mca$var$cos2 %>%
+  as.data.frame() %>%
+  select(`Dim 1`, `Dim 2`) %>%
+  mutate(total = `Dim 1` + `Dim 2`)
+  
+datatable(table) %>%
+  formatCurrency(1:3, digits = 3, "")
+
+fviz_cos2(hs.char.mca, choice = "var", axes = 1:2)
+
+
+```
+
+<br>
+
+#### Contributions - High School Characteristics
+
+**Overview** Contributions measure how much each variable category drives each retained dimension. Categories with higher contributions are the primary drivers of that dimension's axis of variation.
+
+**Dimension 1 - Urban/Southwest Central Axis** Dimension 1 is primarily driven by Urban/town/rural mix (41.7%) and EDR 6E Southwest Central (29.5%), with a secondary contribution from EDR 6W Upper Minnesota Valley (14.9%). This axis clearly captures variation associated with more urban communities concentrated in the Southwest Central region.
+
+**Dimension 2 - Rural/Southwest Axis** Dimension 2 is primarily driven by Entirely rural (39.1%), EDR 6W Upper Minnesota Valley (25.7%), and EDR 8 Southwest (21.9%), with a minor contribution from Town/rural mix (10.2%). This axis captures variation associated with more rural communities concentrated in the western and southwestern portions of the region.
+
+**Notes** The clean separation of contributions across the two dimensions confirms that Dim_Desc and edr are capturing distinct but complementary geographic axes of variation, with Dimension 1 reflecting an urban/central gradient and Dimension 2 reflecting a rural/peripheral gradient.
+
+<br>
+
+```{r hs characteristics mca contribution}
+table <- hs.char.mca$var$contrib %>%
+  as.data.frame() %>%
+  select(`Dim 1`, `Dim 2`) %>%
+  mutate(`Dim 1` = `Dim 1` / 100,
+         `Dim 2` = `Dim 2` / 100)
+
+datatable(table) %>%
+  formatPercentage(1:2, digits = 1)
+```
+
+<br>
+
+#### Summary - High School Characteristics
+
+Multiple Correspondence Analysis on the high school characteristics variables produced two retained dimensions explaining 63.0% of the total variance. Dimension 1 captured an urban/Southwest Central axis, primarily driven by Urban/town/rural mix and EDR 6E Southwest Central, while Dimension 2 captured a rural/peripheral axis driven by Entirely rural, EDR 6W Upper Minnesota Valley, and EDR 8 Southwest. All category COS2 values were adequate, ranging from 0.588 to 0.681, indicating that both variables are well represented across the two retained dimensions.
+
+The MCA revealed that Dem_Desc and edr are capturing distinct but complementary axes of geographic variation rather than redundant information. As a result, no high school characteristics variables were eliminated following MCA.
+
+Variables to drop;
+
+-   None
+
+<br>
+
+## High school accomplishments
+
+Below are the variables that are categorized as "high school accomplishments".
+
+-   High school accomplishments
+    -   `pseo.participant`
+    -   `took.ACT`
+    -   `ap.exam`
+    -   `cte.achievement`
+
+```{r high school accomplishments prep, echo=TRUE}
+hs.accomplishments <- master.ind.qual.var %>%
+  select(pseo.participant, took.ACT, ap.exam, cte.achievement) %>%
+  filter(!is.na(pseo.participant))
+
+kable(head(hs.accomplishments))
+
+kable(names(hs.accomplishments))
+```
+
+<br>
+
+There are `r comma(nrow(demographics))` individuals in the dataset.
+
+<br>
+
+#### Eigenvalues - High School Accomplishments
+
+**Overview** The MCA on high school accomplishment variables produced 5 dimensions, collectively explaining 100% of the variance in the data. Analysis is restricted to individuals with known PSEO participation status, excluding the 2008-2010 graduation cohorts where PSEO data was unavailable.
+
+**Dimension Retention** Using the average eigenvalue threshold (1/k = 0.250), Dimensions 1-2 are recommended for retention, collectively explaining 52.1% of the total variance. Dimension 1 is the strongest, explaining 31.8% of variance, with Dimension 2 explaining an additional 20.3%.
+
+**Notes** The relatively even spread of variance across Dimensions 3-5 suggests that additional axes of variation exist beyond the two retained dimensions, though none meet the threshold for retention.
+
+```{r high school accomplishments eigenvalues}
+hs.accomplishments.mca <- FactoMineR::MCA(hs.accomplishments, graph = FALSE)
+
+eig.val <- get_eigenvalue(hs.accomplishments.mca)
+
+eig.val
+```
+
+<br>
+
+#### COS2 - High School Accomplishments
+
+**Overview** COS2 measures the quality of representation of each variable category across the two retained dimensions. Values range from 0.040 to 0.805, suggesting considerable variation in how well categories are represented in the retained dimensional space.
+
+**Well Represented Categories** No CTE is the best represented category (0.805), loading almost entirely on Dimension 2. took.ACT (0.649) and pseo.participant (0.592) are also well represented across the two dimensions.
+
+**Moderately Represented Categories** CTE Concentrator or Completor (0.538) and ap.exam (0.427) show moderate representation, suggesting some variation in these categories extends beyond the two retained dimensions.
+
+**Poorly Represented Categories** CTE Participant has a notably low total COS2 of 0.040, indicating this category is poorly captured by the two retained dimensions and may be operating independently of the other high school accomplishment variables.
+
+**Notes** The poor representation of CTE Participant warrants attention and may suggest that this intermediate category carries unique variation not shared with either No CTE or CTE Concentrator or Completor categories.
+
+```{r high school accomplishments mca correlation between variables}
+table <- hs.accomplishments.mca$var$cos2 %>%
+  as.data.frame() %>%
+  select(`Dim 1`, `Dim 2`) %>%
+  mutate(total = `Dim 1` + `Dim 2`)
+  
+datatable(table) %>%
+  formatCurrency(1:3, "", digits = 3)
+
+fviz_cos2(hs.accomplishments.mca, choice = "var", axes = 1:2)
+```
+
+<br>
+
+#### Contributions - High School Accomplishments
+
+**Overview** Contributions measure how much each variable category drives each retained dimension. Categories with higher contributions are the primary drivers of that dimension's axis of variation.
+
+**Dimension 1 - Academic Achievement / College Preparedness Axis** Dimension 1 is primarily driven by took.ACT No (23.8%), pseo.participant_1 (21.1%), and ap.exam_1 (20.0%), with a secondary contribution from took.ACT Yes (11.6%). This axis clearly captures variation associated with academic achievement and college preparedness behaviors in high school, distinguishing students who took the ACT, participated in PSEO, and took AP exams from those who did not.
+
+**Dimension 2 - CTE Participation Axis** Dimension 2 is overwhelmingly driven by No CTE (61.7%) and CTE Concentrator or Completor (22.3%), indicating this axis captures variation associated with CTE participation and achievement. The near-absence of CTE Participant (0.1%) on this dimension suggests that the intermediate CTE category is not meaningfully contributing to this axis of variation.
+
+**Notes** The very low contributions of CTE Participant across both dimensions, combined with its poor COS2 representation (0.040), raises the question of whether this intermediate category is adding meaningful information to the analysis. This warrants consideration when interpreting subsequent modeling results involving cte.achievement.
+
+<br>
+
+```{r hs accomplishments mca contribution}
+table <- hs.accomplishments.mca$var$contrib %>%
+  as.data.frame() %>%
+  select(`Dim 1`, `Dim 2`) %>%
+  mutate(`Dim 1` = `Dim 1` / 100,
+         `Dim 2` = `Dim 2` / 100)
+
+datatable(table) %>%
+  formatPercentage(1:2, digits = 1)
+```
+
+<br>
+
+#### Summary - High School Accomplishments
+
+Multiple Correspondence Analysis on the high school accomplishment variables produced two retained dimensions explaining 52.1% of the total variance, restricted to individuals with known PSEO participation status. Dimension 1 captured a clear academic achievement and college preparedness axis, primarily driven by took.ACT, pseo.participant, and ap.exam, while Dimension 2 captured a CTE participation axis driven almost entirely by No CTE and CTE Concentrator or Completor.
+
+The CTE Participant category showed consistently poor representation across both dimensions, with a total COS2 of 0.040 and minimal contributions to either dimension, suggesting this intermediate category carries unique variation not well captured by the retained dimensional structure. Despite this, cte.achievement was retained in its original form as the poor representation of CTE Participant may reflect genuine independence rather than redundancy, and collapsing or dropping the category would require further substantive justification. No high school accomplishment variables were eliminated following MCA.
+
+Variables to drop
+
+-   None
+
+<br>
+
+## Post secondary
+
+Below are the variables that are categorized as "high school accomplishments".
+
+-   Post-secondary
+    -   `attended.ps`
+    -   `ps.grad`
+    -   `ps.grad.InstitutionSector`
+    -   `highest.cred.level`
+    -   `ps.grad.location`
+
+```{r ps prep, echo=TRUE}
+ps <- master.ind.qual.var %>%
+  select(attended.ps, ps.grad, ps.grad.InstitutionSector, highest.cred.level, ps.grad.location)
+
+kable(head(ps))
+
+kable(names(ps))
+```
+
+<br>
+
+There are `r comma(nrow(demographics))` individuals in the dataset.
+
+<br>
+
+### MCA analysis
+
+#### Eigenvalues - Postsecondary Variables
+
+**Overview** The MCA on postsecondary variables produced 14 meaningful dimensions, collectively explaining 100% of the variance in the data. Dimensions 15-20 have effectively zero eigenvalues, reflecting expected linear dependencies among structurally related postsecondary variables.
+
+**Dimension Retention** Based on a combination of the average eigenvalue threshold (1/k = 0.200) and a clear elbow in the variance explained after Dimension 2, Dimensions 1-3 are recommended for retention, collectively explaining 52.9% of the total variance. Dimensions 1 and 2 are clearly dominant, explaining 22.5% and 20.0% respectively, with a notable drop to Dimension 3 at 10.4%.
+
+**Notes** The structural relationships among postsecondary variables, such as ps.grad, ps.grad.location, and highest.cred.level, likely account for the linear dependencies observed in the near-zero eigenvalue dimensions. The relatively complex eigenvalue structure reflects the richness of variation captured by this variable group.
+
+<br>
+
+```{r ps eigenvalues}
+ps.mca <- FactoMineR::MCA(ps, graph = FALSE)
+
+eig.val <- get_eigenvalue(ps.mca)
+
+eig.val
+```
+
+<br>
+
+#### COS2 - Postsecondary Variables
+
+**Overview** COS2 measures the quality of representation of each variable category across the three retained dimensions. Values range considerably from 0.010 to 1.000, revealing both strong redundancy among some variables and poor representation of others.
+
+**Perfectly or Near-Perfectly Represented Categories** Several categories achieve near-perfect total COS2 values, including ps.grad Attending ps (0.998), ps.grad.InstitutionSector Attending ps (0.998), highest.cred.level Attending ps (0.998), and ps.grad.location Attending ps (0.998). Similarly, ps.grad No (0.970), highest.cred.level Did not graduate ps (0.970), and ps.grad.location Did not graduate ps (0.972) are nearly identical in their representation. These patterns strongly suggest that these categories are capturing the same underlying variation across multiple variables, indicating considerable redundancy among ps.grad, ps.grad.location, and highest.cred.level.
+
+**Well Represented Categories** ps.grad.InstitutionSector_4 (Public 2-year, 0.909), highest.cred.level Bachelor degree (0.767), and ps.grad.InstitutionSector Never attended ps (0.587) are well represented across the three retained dimensions.
+
+**Moderately Represented Categories** attended.ps (0.587), ps.grad.InstitutionSector_1 (Public 4-year, 0.562), highest.cred.level Associate degree (0.451), and ps.grad.location PS grad outside MN (0.289) show moderate representation, suggesting some variation in these categories extends beyond the three retained dimensions.
+
+**Poorly Represented Categories** Several categories show notably poor representation, including ps.grad.InstitutionSector_11 (Private other, 0.010), ps.grad.InstitutionSector_10 (Foreign institutions, 0.078), highest.cred.level Master degree or higher (0.099), and ps.grad.location PS grad region categories (0.170-0.188). These categories carry unique variation not well captured by the three retained dimensions.
+
+**Notes** The near-identical COS2 patterns across ps.grad, ps.grad.location, and highest.cred.level for the Attending ps and Did not graduate ps categories strongly suggest redundancy among these variables that warrants careful consideration in variable retention decisions.
+
+<br>
+
+```{r ps mca correlation between variables}
+table <- ps.mca$var$cos2 %>%
+  as.data.frame() %>%
+  select(`Dim 1`, `Dim 2`, `Dim 3`) %>%
+  mutate(total = `Dim 1` + `Dim 2` + `Dim 3`)
+  
+datatable(table) %>%
+  formatCurrency(1:4, "", digits = 3)
+
+fviz_cos2(ps.mca, choice = "var", axes = 1:3)
+```
+
+<br>
+
+#### MCA Contributions - Postsecondary Variables
+
+**Overview** Contributions measure how much each variable category drives each retained dimension. Categories with higher contributions are the primary drivers of that dimension's axis of variation. The contribution results reveal striking redundancy among several postsecondary variables, with near-identical contributions appearing across multiple variables for the same underlying construct.
+
+**Dimension 1 - Did Not Graduate Postsecondary Axis** Dimension 1 is driven by near-identical contributions from attended.ps No (9.5%), ps.grad No (11.5%), highest.cred.level Did not graduate ps (11.5%), and ps.grad.location Did not graduate ps (11.5%). The near-identical contributions of these categories across four separate variables strongly indicates that these variables are capturing the same underlying construct — whether an individual did not attend or graduate from postsecondary education.
+
+**Dimension 2 - Currently Attending Postsecondary Axis** Dimension 2 is almost entirely driven by four identical contributions of 21.8% each from ps.grad Attending ps, ps.grad.InstitutionSector Attending ps, highest.cred.level Attending ps, and ps.grad.location Attending ps. This perfect replication of contributions across four variables is unambiguous evidence of redundancy, as all four variables are capturing exactly the same information about individuals currently attending postsecondary education.
+
+**Dimension 3 - Institution Type and Credential Level Axis** Dimension 3 is driven by ps.grad.InstitutionSector_4 (Public 2-year, 27.3%), highest.cred.level Bachelor degree (15.2%), highest.cred.level Less than Associate Degree (12.1%), and highest.cred.level Associate degree (13.7%). This dimension captures meaningful variation in the type of institution attended and the level of credential attained, representing the most substantively informative axis of variation among the postsecondary variables.
+
+**Notes** The contribution results provide compelling evidence of redundancy among ps.grad, ps.grad.location, highest.cred.level, and attended.ps, particularly for the Attending ps and Did not graduate ps categories which contribute identically across multiple variables. This redundancy warrants serious consideration of variable elimination prior to modeling, with Dimension 3 suggesting that institution type and credential level may be the most informative non-redundant postsecondary variables.
+
+<br>
+
+```{r ps mca contribution}
+table <- ps.mca$var$contrib %>%
+  as.data.frame() %>%
+  select(`Dim 1`, `Dim 2`, `Dim 3`) %>%
+  mutate(`Dim 1` = `Dim 1` / 100,
+         `Dim 2` = `Dim 2` /100,
+         `Dim 3` = `Dim 3` / 100)
+
+datatable(table) %>%
+  formatPercentage(1:3, digits = 1)
+```
+
+<br>
+
+#### MCA Summary - Postsecondary Variables
+
+Multiple Correspondence Analysis on the postsecondary variables produced three retained dimensions explaining 52.9% of the total variance. Dimension 1 captured a did not graduate postsecondary axis, driven by near-identical contributions from attended.ps, ps.grad, highest.cred.level, and ps.grad.location, all reflecting whether an individual did not attend or complete postsecondary education. Dimension 2 captured a currently attending postsecondary axis, again driven by perfectly identical contributions across ps.grad, ps.grad.InstitutionSector, highest.cred.level, and ps.grad.location, providing unambiguous evidence of redundancy among these variables for this particular category. Dimension 3 captured a more substantively distinct axis of institution type and credential level, primarily driven by public 2-year institution attendance and varying credential levels.
+
+While the MCA revealed considerable redundancy among the postsecondary variables, all five variables were retained on substantive grounds. Each variable contributes meaningful and distinct information to the modeling context, particularly given the importance of credential level distinctions, geographic location of attendance, and institution type in understanding regional workforce participation outcomes.
+
+<br>
+
+# Variables to keep and eliminate
+
+Multiple Correspondence Analysis was conducted across four variable groups: demographic variables, high school characteristics, high school accomplishments, and postsecondary variables. The MCA did not identify any additional variables for elimination beyond the decisions already made during the initial frequency table review. The following changes were made prior to MCA:
+
+**Variables Dropped:**
+
+-   `sat.taken` — near-zero variance with only 0.5% of individuals having taken the SAT
+-   `HomelessIndicator` — very sparse positive cases
+-   `LimitedEnglishProficiencyIndicator` — lower counts compared to english.learner and non.english.home
+-   `grad.year.covid` — redundant recoding of hs.grad.year
+-   `hs.grad.year` — removed along with grad.year.covid to eliminate the temporal dimension from MCA
+-   `attended.ps.within.first.year.hsgrad` — subsumed by other postsecondary variables
+
+**Variables Recoded:**
+
+-   ps.grad.InstitutionSector — sparse categories 3, 5, 6, 8, and 9 collapsed into a new category 11 (Private other)
+-   RaceEthnicity — Unknown race/ethnicity individuals removed from the dataset prior to MCA
+
+**Data Decisions:**
+
+-   pseo.participant NA values — identified as representing the 2008-2010 graduation cohorts where PSEO data was unavailable due to data system limitations. These individuals are retained in the master dataset but excluded from any analysis involving pseo.participant.
+
+<br>
+
+```{r final master}
+master.final.after.mca <- master.original %>%
+  select(-sat.taken, -HomelessIndicator, -LimitedEnglishProficiencyIndicator, -grad.year.covid, -hs.grad.year, -attended.ps.within.first.year.hsgrad) %>%
+  mutate(ps.grad.InstitutionSector = ifelse(ps.grad.InstitutionSector %in% c("3", "5", "6", "7", "8", "9", "10", "11") | is.na(ps.grad.InstitutionSector), "11", ps.grad.InstitutionSector)) %>%
+  select(1:ps.grad.in.MN, ps.grad.location, mn.emp.record.hs.grad.year:ncol(.))
+
+names(master.final.after.mca)
+
+write_csv(master.final.after.mca, "Data/SLEDS/Masters/After analysis/Master-final-after-mca.csv")
+
+```
