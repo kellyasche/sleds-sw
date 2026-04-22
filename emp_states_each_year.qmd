@@ -143,55 +143,56 @@ employment.original <- read_csv("Data/SLEDS/Employment/Employment-Southwest.csv"
 kable(head(employment.original))
 
 kable(names(employment.original))
+
 ```
 
 <br>
 
 In the original dataset we have `r employment.original %>% nrow()` rows and `r employment.original %>% ncol()` columns. Below is a description of each variable.
 
--   Empl_TimeID: Last day of fiscal quarter
--   CalendarYear: Year
--   CalendarQuarter: Quarter within the year in which the data applies. Quarters are;
-    -   1 = Jan - Mar
-    -   2 = Apr - Jun
-    -   3 = Jul - Sep
-    -   4 = Oct - Dec
--   EmploymentOrganizationID: An internal identification for each employer.
--   EmployeeQuarterlyHoursWorked: The total number of hours worked by an employee at an employer's location during a specific calendar quarter
--   EmployeeQuarterlyWages: The total wages earned by an employee at an employer's location during a specific calendar quarter
--   EmployeeTenure: The total number of quarters a worker has been employeed by an organization at a specific location, up to an including the current calendar quarter
--   IndustryID: Auto generated ID code for a record in the Industry dimension.
--   USIndustryCode: Six-digit North American Industrial Classification System (NAICS) code
--   GroupCode: Four-digit North American Industrial Classification System (NAICS) code
--   IndustryGroup: Definition of GroupCode variable, the 4-digit NAICS code
--   OwnershipCode: A classification system based upon the controlling interest of the establishment primarily designed to distinguish between governmental and non-governmental establishments
-    -   10 = Federal government
-    -   20 = State government
-    -   30 = Local government
-    -   50 = Private
--   EmployerLocationTotalWagesPaid: The total wages paid to all workers employeed by an organization at a specific location during a specific calendar quarter
--   QuarterlyAverageEmployment: The average number of workers employeed by an organization at a specific location during a specific calendar quarter
--   LocationID: ???
--   EconomicDevelopmentRegion: The 13 economic development regions within the state of Minnesota as defined by the Department of Employment and Economic Development (DEED).
-    -   R01000 EDR 1 - Northwest\
-    -   R02000 EDR 2 - Headwaters\
-    -   R03000 EDR 3 - Arrowhead\
-    -   R04000 EDR 4 - West Central\
-    -   R05000 EDR 5 - North Central\
-    -   R06E00 EDR 6E - Southwest Central\
-    -   R06W00 EDR 6W - Upper Minnesota Valley\
-    -   R07E00 EDR 7E - East Central\
-    -   R07W00 EDR 7W - Central\
-    -   R08000 EDR 8 - Southwest\
-    -   R09000 EDR 9 - South Central\
-    -   R10000 EDR 10 - Southeast
-    -   R11000 EDR 11 - 7 County Twin Cities
--   EconomicDevelopmentRegionName: Name of EDR
--   County: Minnesota county code to which this institution belongs. This can be used as a foreign key into the Geography dimension on MNCounty.
-    -   [Link to codes](https://sleds.mn.gov/dataDictionary/658)
--   CountyName: The name of the county corresponding to the County and MNCounty Codes for this Location.
--   MNCounty: County Code for this location as assigned by the state of Minnesota.
-    -   [Link to codes](https://sleds.mn.gov/dataDictionary/663) City: All of the city data is NA
+- Empl_TimeID: Last day of fiscal quarter
+- CalendarYear: Year
+- CalendarQuarter: Quarter within the year in which the data applies. Quarters are;
+  - 1 = Jan - Mar
+  - 2 = Apr - Jun
+  - 3 = Jul - Sep
+  - 4 = Oct - Dec
+- EmploymentOrganizationID: An internal identification for each employer.
+- EmployeeQuarterlyHoursWorked: The total number of hours worked by an employee at an employer's location during a specific calendar quarter
+- EmployeeQuarterlyWages: The total wages earned by an employee at an employer's location during a specific calendar quarter
+- EmployeeTenure: The total number of quarters a worker has been employeed by an organization at a specific location, up to an including the current calendar quarter
+- IndustryID: Auto generated ID code for a record in the Industry dimension.
+- USIndustryCode: Six-digit North American Industrial Classification System (NAICS) code
+- GroupCode: Four-digit North American Industrial Classification System (NAICS) code
+- IndustryGroup: Definition of GroupCode variable, the 4-digit NAICS code
+- OwnershipCode: A classification system based upon the controlling interest of the establishment primarily designed to distinguish between governmental and non-governmental establishments
+  - 10 = Federal government
+  - 20 = State government
+  - 30 = Local government
+  - 50 = Private
+- EmployerLocationTotalWagesPaid: The total wages paid to all workers employeed by an organization at a specific location during a specific calendar quarter
+- QuarterlyAverageEmployment: The average number of workers employeed by an organization at a specific location during a specific calendar quarter
+- LocationID: ???
+- EconomicDevelopmentRegion: The 13 economic development regions within the state of Minnesota as defined by the Department of Employment and Economic Development (DEED).
+  - R01000 EDR 1 - Northwest\
+  - R02000 EDR 2 - Headwaters\
+  - R03000 EDR 3 - Arrowhead\
+  - R04000 EDR 4 - West Central\
+  - R05000 EDR 5 - North Central\
+  - R06E00 EDR 6E - Southwest Central\
+  - R06W00 EDR 6W - Upper Minnesota Valley\
+  - R07E00 EDR 7E - East Central\
+  - R07W00 EDR 7W - Central\
+  - R08000 EDR 8 - Southwest\
+  - R09000 EDR 9 - South Central\
+  - R10000 EDR 10 - Southeast
+  - R11000 EDR 11 - 7 County Twin Cities
+- EconomicDevelopmentRegionName: Name of EDR
+- County: Minnesota county code to which this institution belongs. This can be used as a foreign key into the Geography dimension on MNCounty.
+  - [Link to codes](https://sleds.mn.gov/dataDictionary/658)
+- CountyName: The name of the county corresponding to the County and MNCounty Codes for this Location.
+- MNCounty: County Code for this location as assigned by the state of Minnesota.
+  - [Link to codes](https://sleds.mn.gov/dataDictionary/663) City: All of the city data is NA
 
 <br>
 
@@ -209,15 +210,16 @@ So all the previous datasets we structured and filtered so that each observation
 ```{r mn employment record}
 
 grad.years <- read_csv("Data/SLEDS/Masters/Master-10.csv") %>%
-  select(PersonID, hs.grad.year)
+  select(PersonID, hs.grad.year) %>%
+  filter(hs.grad.year < 2024)
 
 mn.emp.record.year <- employment.original %>%
   mutate(CalendarYear = as.integer(str_sub(TimeID, 1, 4))) %>%
   select(PersonID, CalendarYear) %>%
   distinct(PersonID, CalendarYear) %>%
   mutate(mn.emp.record = "MN emp record") %>%
-  filter(CalendarYear > 2007) %>%
-  filter(CalendarYear < 2024) %>%
+  filter(CalendarYear > 2007, 
+         CalendarYear < 2024) %>%
   complete(PersonID, CalendarYear, fill = list(mn.emp.record = "No MN emp record")) 
 
 mn.emp.record <- grad.years %>%
@@ -243,6 +245,8 @@ mn.emp.record <- grad.years %>%
 kable(names(mn.emp.record))
 
 kable(head(mn.emp.record))
+
+
 ```
 
 <br>
@@ -251,9 +255,9 @@ The dataset above provides each unique PersonID from our master list along with 
 
 Here is the logic;
 
--   grad.year.x \> 2023: mn.emp.record == "After 2023",
--   if there's a MN employment record for the PersonID and the grad.year.x: mn.emp.record == "MN emp record"
--   if there's no MN employment record for the PersonID and the grad.year.x: mn.emp.record == "No MN emp record"
+- grad.year.x \> 2023: mn.emp.record == "After 2023",
+- if there's a MN employment record for the PersonID and the grad.year.x: mn.emp.record == "MN emp record"
+- if there's no MN employment record for the PersonID and the grad.year.x: mn.emp.record == "No MN emp record"
 
 There are `r comma(nrow(mn.emp.record))` rows in this dataset with `r comma(nrow(distinct(mn.emp.record, PersonID)))` individuals.
 
@@ -298,10 +302,10 @@ kable(names(meaningful.employer))
 
 This dataset has `r comma(nrow(meaningful.employer))` rows where each row represents a grad.year.x and whether the PersonID had the following;
 
--   meaningful employment
--   mn employment record but not meaningful employment
--   employment calendar year was after 2023, and
--   had no MN employment record.
+- meaningful employment
+- mn employment record but not meaningful employment
+- employment calendar year was after 2023, and
+- had no MN employment record.
 
 Along with each of these is the Employment Organization ID which we can now join to see the lcoation of the meaningful employment.
 
@@ -354,13 +358,14 @@ meaningful.emp.locations <- meaningful.employer %>%
          emp.edr = ifelse(employment.county == "Mahnomen", "EDR 2 - Headwaters", emp.edr))
 
 grad.locations <- read_csv("Data/SLEDS/Masters/Master-10.csv") %>%
+  filter(hs.grad.year < 2024) %>%
   select(PersonID, county.name, Dem_Desc, edr) %>%
   rename(hs.county.name = county.name,
          hs.Dem_Desc = Dem_Desc,
          hs.edr = edr)
 
 grad.emp.location.match <- grad.locations %>%
-  right_join(meaningful.emp.locations, by = "PersonID") %>%
+  left_join(meaningful.emp.locations, by = "PersonID") %>%
   mutate(county.match = new.mn.emp.record,
          new.county.match = ifelse(county.match == "Meaningful employment" & employment.county == hs.county.name, "Meaningful emp - match", county.match),
          new.county.match = ifelse(new.county.match == "Meaningful employment", "Meaningful emp - no match", new.county.match),

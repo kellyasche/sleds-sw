@@ -50,3 +50,4 @@ Charts/
 Report/
 /.quarto/
 **/*.quarto_ipynb
+.positai
