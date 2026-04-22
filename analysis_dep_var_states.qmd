@@ -131,7 +131,7 @@ mn_counties <- st_read('/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasch
 ```
 
 ```{r master original}
-master.original <- read_csv("Data/SLEDS/Masters/Master.csv")
+master.original <- read_csv("Data/SLEDS/Masters/After analysis/Master-final-after-mca.csv")
 ```
 
 <br>
@@ -192,10 +192,10 @@ Okay, lets check out the National Student Clearinghouse enrollment data.
 <br>
 
 ```{r nsc enrollment originals, echo=TRUE}
-grads <- read_csv("Data/SLEDS/Masters/Master.csv") %>%
+grads <- read_csv("Data/SLEDS/Masters/After analysis/Master-final-after-mca.csv") %>%
   select(PersonID)
 
-nsc.enrollment.original <- read_csv('/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Research/FY25-27/FY26/OHE Journey to meaningful employment/Data/SLEDS/NSCEnrollment/NSC_Enrollments.csv') %>%
+nsc.enrollment.original <- read_csv("~/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Research/FY25-27/FY26/OHE Journey to meaningful employment/Data/CRPD 2 (angelique.workman@state.mn.us)/NSC_Enrollments.csv") %>%
   mutate(PersonID = as.integer(PersonID),
          OPEID = str_pad(OPEID, width = 8, side = "left", pad = "0"),
          OPEID.6 = str_sub(OPEID, 1, 6)) %>%
@@ -314,7 +314,7 @@ Next we want to figure out the different paths that these group of individuals t
 0.  After 2023
 1.  Has meaningful employment in same county as high school
 2.  Has meaningful employment in same EDR/Region as high school, but not same county
-3.  Has meaningful employment in Minnesota, but not in Northeast Minnesota.
+3.  Has meaningful employment in Minnesota, but not in Southwest Minnesota.
 4.  Does not have meaningful employment or a MN employment record, but is attending post-secondary
 5.  Does not have meaningful employment and is not attending post-secondary.
 6.  Does not have a MN employment record and is not attending post-secondary.
@@ -355,8 +355,8 @@ kable(names(seven.states))
 The new dataset has `r comma(nrow(seven.states))` rows and `r comma(ncol(seven.states))` with `r comma(nrow(distinct(seven.states, PersonID)))` unique individuals. The seven states are labeled as the following;
 
 1.  Meaningful emp County: means they have worked 1,000 hours or more for one employer located in the same county as their high school.
-2.  Meaningful emp region: means they have worked 1,000 hours or more for one employer located in Northeast Minnesota.
-3.  Meaningful emp MN - means they have worked 1,000 hours or more for one employer located in Minnesota, but not in Northeast Minnesota.
+2.  Meaningful emp region: means they have worked 1,000 hours or more for one employer located in Southwest Minnesota.
+3.  Meaningful emp MN - means they have worked 1,000 hours or more for one employer located in Minnesota, but not in Southwest Minnesota.
 4.  Attending ps: Means the individuals either has a MN employment record but it isn't meaningful OR they do not have a MN employment record, but they are attending post-secondary.
 5.  Not meaningful, not attending ps: this means they do have a MN employment record, but it isn't meaningful and they are not attending post-secondary.
 6.  No MN emp record - not attending ps: this means they do not have a MN employment record nor are they attending a post-secondary institution.
@@ -367,10 +367,10 @@ Let's first take a look at the proportion of individuals that are in each state 
 
 The chart below shows the proportion of individuals in the dataset that are in each "state/path" for each grad.year.x. There are a couple of things to highlight.
 
-1.  The percentage of individuals with meaningful employment in Northeast Minnesota peaks about 6 years after college with nearly 30% of graduates working 1,000 hours or more that year for a single employer.
+1.  The percentage of individuals with meaningful employment in Southwest Minnesota peaks about 6 years after college with nearly 25% of graduates working 1,000 hours or more that year for a single employer.
 2.  At 6 years after graduating, nearly half of the graduates have meaningful employment in Minnesota.
-3.  Graduates not reaching the meaningful employment threshold in Minnesota hovers around 20% after the first year of graduating high school.
-4.  Nearly 30% of graduates disappear from my dataset about 10 years after graduating. This means they are not going to post-secondary in the United States and do not have a Minnesota employment record.
+3.  Graduates not reaching the meaningful employment threshold in Minnesota hovers around 15% after the first year of graduating high school.
+4.  Over a third of graduates disappear from my dataset about 10 years after graduating. This means they are not going to post-secondary in the United States and do not have a Minnesota employment record.
 
 <br>
 
