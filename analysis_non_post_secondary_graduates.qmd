@@ -1,0 +1,1686 @@
+---
+title: "Non-post-secondary graduates"
+editor: visual
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(sf)
+library(ggrepel)
+library(scales)
+library(shiny)
+library(shinycssloaders)
+library(ggiraph)
+library(kableExtra)
+library(rmapshaper)
+library(cowplot)
+library(DT)
+library(htmlwidgets)
+library(RColorBrewer)
+library(readxl)
+library(janitor)
+library(lubridate)
+library(systemfonts)
+reset_font_cache()
+library(ggtext)
+library(gmodels)
+library(fastDummies)
+library(car)
+library(glmnet)
+library(glmnetUtils)
+library(pscl)
+library(sjPlot)
+library(ggforce)
+library(rpart)
+library(rpart.plot)
+library(tidymodels)
+library(caret)
+library(themis)
+library(ranger)
+library(openxlsx)
+```
+
+```{r themes and shapefiles, include=FALSE}
+theme_bar <- theme_bw() +
+  theme(panel.grid.major = element_line(color = "grey70", linewidth  = 0.1),
+        panel.grid.minor = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.key.size = unit(1, "lines"),
+        legend.margin = margin(0,0,0,0),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        text = element_text(family = "Arial") ,
+        plot.title.position = "plot",
+        plot.title = element_text(face = "bold"))
+
+theme_line <- theme_bw() +
+  theme(legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.text = element_text(margin = margin(l = 2)),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(color = "grey70", linewidth = 0.1),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial") ,
+        plot.title.position = "plot",
+        plot.title = element_text(face = "bold"))
+
+
+theme_sf <- theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        panel.background = element_blank(),
+        panel.grid.major = element_line(color = "white"),
+        panel.border = element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial") ,
+        plot.title.position = "plot",
+        plot.title = element_text(face = "bold"))
+
+regions <- read_csv("/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Data Prep/R Projects/Join docs/county_regions.csv") %>%
+    select(5,6) %>%
+    unique() %>%
+    mutate(edr = str_replace(edr, "  ", " "),
+           planning.region = str_replace(planning.region, " Minnesota", ""),
+           planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+           edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+counties.regions <- read_csv("/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Data Prep/R Projects/Join docs/county_regions.csv") %>%
+  rename(mif = `MIF Region`) %>%
+  mutate(countyfp = formatC(countyfp, width = 3, flag = "0"),
+         Name = str_to_title(Name),
+         Name = str_replace(Name, "Q", "q"),
+         Name = str_replace(Name, "Of The", "of the"),
+         Name = str_replace(Name, "Mcleod", "McLeod"),
+         Dem_Desc = ifelse(Name == "Minnesota", "Minnesota", Dem_Desc) ,
+         edr = str_replace(edr, "  ", " "),
+         planning.region = str_replace(planning.region, " Minnesota", ""),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"),
+         Dem_Desc = fct_relevel(Dem_Desc, "Entirely rural", "Town/rural mix", "Urban/town/rural mix", "Entirely urban"))
+
+counties.regions.1 <- counties.regions %>%
+  mutate(statefp = "27",
+         project.pr = ifelse(edr %in% c("EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 4 - West Central"), "Northwest",
+                             ifelse(edr == "EDR 3 - Arrowhead", "Northeast",
+                                    ifelse(edr %in% c("EDR 5 - North Central", "EDR 7E- East Central", "EDR 7W- Central"), "Central",
+                                           ifelse(edr %in% c("EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 8 - Southwest"), "Southwest",
+                                                  ifelse(edr %in% c("EDR 9 - South Central", "EDR 10 - Southeast"), "Southern", as.character(planning.region)))))),
+         project.pr = fct_relevel(project.pr, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southern"))
+
+
+color.ruca <- c("Entirely rural" = "#009933", "Town/rural mix" = "#99CC33", "Urban/town/rural mix" = "#CC9966", "Entirely urban" = "#754C29", "Minnesota" = "black")
+
+color.pr <- c("Northwest" = 	"#4575b4", "Northeast" = "grey", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black")
+
+color.edr <- c("EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365", "Minnesota" = "black")
+
+color.edr.simple <- c("EDR 1" = "#b3cde3", "EDR 2" = "#8c96c6", "EDR 3" = "#fe9929", "EDR 4" = "#8856a7", "EDR 5" = "#810f7c", "EDR 6E" = "#e5f5f9", "EDR 6W" = "#bdc9e1", "EDR 7E" = "#99d8c9", "EDR 7W" = "#2ca25f", "EDR 8" = "#74a9cf", "EDR 9" = "#0570b0", "EDR 10" = "#d7301f", "EDR 11" = "#d8b365", "Minnesota" = "black")
+
+color.pr.edr <- c ("Northwest" = "#4575b4","Northeast" = "#e0f3f8", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black", "EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365")
+
+mn_counties <- st_read("/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Data Prep/R Projects/Shapefiles/County shapefiles/MNCounties_MNDOT.shp", quiet = TRUE) %>%
+  ms_simplify(keep = .01, keep_shapes = TRUE) %>%
+  rename(countyfp = FIPS_CODE)
+```
+
+```{r master}
+master.original <- read_csv("Data/SLEDS/Masters/After analysis/Master-after-ct.csv") %>%
+  mutate(ps.grad.InstitutionSector = ifelse(ps.grad.InstitutionSector == "1", "Public, 4-year", as.character(ps.grad.InstitutionSector)),
+         ps.grad.InstitutionSector = ifelse(ps.grad.InstitutionSector == "4", "Public, 2-year", as.character(ps.grad.InstitutionSector)),
+         ps.grad.InstitutionSector = ifelse(ps.grad.InstitutionSector == "11", "Other", as.character(ps.grad.InstitutionSector)),
+         ps.grad.location = ifelse(ps.grad.location == "PS grad EDR", "PS grad region", ps.grad.location),
+         highest.cred.level = as.factor(highest.cred.level))
+
+kable(names(master.original))
+
+kable(head(master.original))
+```
+
+# Define the subset
+
+One of the aspects noticed during analysis is the percentage of individuals that never graduated college that also had meaningful employment in the region. The table below shows that 47% of the high school graduates in Southern Minnesota never graduated college.
+
+```{r}
+data <- master.original %>%
+  filter(ps.grad != "Attending ps") %>%
+  group_by(ps.grad) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  mutate(pct = n / sum(n))
+
+datatable(data, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:2)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatPercentage(3, digits = 1)
+
+
+```
+
+We are going to examine, more closely, this 47% of the population and see if there are patterns in which they end up in different employment outcomes 1-, 5- and 10-years after graduating high school.
+
+<br>
+
+# Employment outcomes distribution
+
+The following tables provide the percentage of non-college graduates that were categorized in the various employment outcomes at 1-, 5-, and 10-years after graduating high school.
+
+Among non-college completers, workforce participation patterns shift substantially across the three observation windows, reflecting the transition out of postsecondary attendance and into more settled labor market positions over time.
+
+At year 1, the population is still actively sorting. More than one in five individuals (21.8%) are attending postsecondary at this point — a group that will, by definition, leave the non-college completer population if they ultimately earn a credential, but who appear here as non-completers as of the observation window. Regional employment is already the most common workforce outcome (19.3%), while a combined 52.5% are either not yet meaningfully employed or carry no Minnesota employment record at all, reflecting the unsettled nature of the early post-graduation period.
+
+By year 5, postsecondary attendance has collapsed to 4.5%, indicating that most of this group has exited postsecondary without completing. Regional employment holds relatively stable at 25.7%, and statewide employment outside the region grows to 15.1%, suggesting some outward labor market mobility. However, the two non-employment categories together still account for 54.6% of the population — with "no Minnesota employment record" actually growing from 21.3% to 30.7%, a notable increase that may reflect out-of-state migration, informal employment, or disengagement from the formal labor market.
+
+At year 10, the attending postsecondary category disappears entirely, as expected. Regional employment remains the single largest employment category at 24.7%, roughly consistent with its year 5 share, while statewide employment holds at 17.9%. The most striking feature of the year 10 distribution is that 38.6% carry no Minnesota employment record — the largest single category at this time point — suggesting that a substantial and growing share of non-college completers have either left the state or are not participating in the formal Minnesota labor market a decade after high school graduation. The not-meaningful employment share drops sharply from 23.9% to 18.7%, indicating that those who remain in Minnesota are increasingly achieving sustained employment, but the overall picture points to significant long-term labor market precarity or geographic departure among this subgroup.
+
+::: panel-tabset
+## 1 year after graduation
+
+```{r}
+data <- master.original %>%
+  filter(ps.grad == "No") %>%
+  filter(grad.year.1 != "After 2023") %>%
+  group_by(grad.year.1) %>%
+  summarize(n = n()) %>%
+  ungroup %>%
+  mutate(pct = n / sum(n)) 
+
+datatable(data, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:2)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatPercentage(3, digits = 1)
+```
+
+## 5 years after graduation
+
+```{r}
+data <- master.original %>%
+  filter(ps.grad == "No") %>%
+  filter(grad.year.5 != "After 2023") %>%
+  group_by(grad.year.5) %>%
+  summarize(n = n()) %>%
+  ungroup %>%
+  mutate(pct = n / sum(n)) 
+
+datatable(data, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:2)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatPercentage(3, digits = 1)
+```
+
+## 10 years after graduation
+
+```{r}
+data <- master.original %>%
+  filter(ps.grad == "No") %>%
+  filter(grad.year.10 != "After 2023") %>%
+  group_by(grad.year.10) %>%
+  summarize(n = n()) %>%
+  ungroup %>%
+  mutate(pct = n / sum(n)) 
+
+datatable(data, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:2)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatPercentage(3, digits = 1)
+
+```
+:::
+
+<br>
+
+# Methodology
+
+We are going to examine relationships between each independent variable and the workforce participation outcomes (dependent variable) at 1-, 5- and 10-years after graduating high school for college non-completers.
+
+## Independent variables
+
+Here are the independent variables we will be examining.
+
+- Demographic
+  - `Gender`
+  - `economic.status`
+  - `SpecialEdStatus`
+  - `RaceEthnicity`
+  - `english.learner`
+  - `non.english.home`
+- High School Characteristics
+  - `Dem_Desc`
+  - `edr`
+  - `avg.unemp.rate`
+  - `avg.wages.pct.state`
+- High school accomplishments
+  - `pseo.participant`
+  - `took.ACT`
+  - `ACTCompositeScore`
+  - `ap.exam`
+  - `MCA.M`
+  - `MCA.R`
+  - `MCA.S`
+  - `cte.achievement`
+  - `total.cte.courses.taken`
+- Post-secondary
+  - `attended.ps`
+
+For exploring the relationships we will do the following;
+
+- For **categorical predictors** (e.g., Race/Ethnicity, Economic status, CTE achievement, PSEO participation), use cross-tabs with Cramer’s V and chi-square.
+- For **continuous predictors** (e.g., ACT, MCA scores, total CTE courses, county-level variables), use ANOVA to compare means across the employment states.
+- Run these analyses separately for grad.year.1, grad.year.5, grad.year.10 to see how relationships shift over time.
+
+## Dependent variables
+
+The dependent variables will be workforce participation outcomes at 1-, 5- and 10-years after high school. The workforce participation categories at each `grad.year.x` are;
+
+- Sustained WF - region: 1,000+ hours with a single employer in a calendar year located in the region
+- Sustained WF - MN: 1,000+ hours with a single employer in a calendar year located outside the region, but in Minnesota
+- Non-sustained WF: has a Minnesota employment record but did not reach the "sustained" threshold.
+- No MN emp record: does not have a Minnesota employment record and is not attending post-secondary.
+- Attending ps: is attending postsecondary and meets one of the following criteria;
+  - does not have sustained workforce participation within Minnesota or the region, or
+  - does not have a MN employment record.
+
+<br>
+
+# Analysis
+
+```{r}
+data.1 <- master.original %>%
+  filter(ps.grad == "No",
+         grad.year.1 != "After 2023") %>%
+  mutate(grad.year.1 = str_replace(grad.year.1, "Meaningful emp MN", "Sustained WF - MN"),
+         grad.year.1 = str_replace(grad.year.1, "Meaningful emp region", "Sustained WF - Region"),
+         grad.year.1 = str_replace(grad.year.1, "No MN emp record, not attending ps", "No MN employment record"),
+         grad.year.1 = str_replace(grad.year.1, "Not meaningful, not attending ps", "Non-sustained WF"),
+         grad.year.1 = fct_relevel(grad.year.1, "Sustained WF - Region", "Sustained WF - MN", "Non-sustained WF", "No MN employment record", "Attending ps"))
+
+data.5 <- master.original %>%
+  filter(ps.grad == "No",
+         grad.year.5 != "After 2023") %>%
+  mutate(grad.year.5 = str_replace(grad.year.5, "Meaningful emp MN", "Sustained WF - MN"),
+         grad.year.5 = str_replace(grad.year.5, "Meaningful emp region", "Sustained WF - Region"),
+         grad.year.5 = str_replace(grad.year.5, "No MN emp record, not attending ps", "No MN employment record"),
+         grad.year.5 = str_replace(grad.year.5, "Not meaningful, not attending ps", "Non-sustained WF"),
+         grad.year.5 = fct_relevel(grad.year.5, "Sustained WF - Region", "Sustained WF - MN", "Non-sustained WF", "No MN employment record", "Attending ps"))
+
+data.10 <- master.original %>%
+  filter(ps.grad == "No",
+         grad.year.10 != "After 2023") %>%
+  mutate(grad.year.10 = str_replace(grad.year.10, "Meaningful emp MN", "Sustained WF - MN"),
+         grad.year.10 = str_replace(grad.year.10, "Meaningful emp region", "Sustained WF - Region"),
+         grad.year.10 = str_replace(grad.year.10, "No MN emp record, not attending ps", "No MN employment record"),
+         grad.year.10 = str_replace(grad.year.10, "Not meaningful, not attending ps", "Non-sustained WF"),
+         grad.year.10 = fct_relevel(grad.year.10, "Sustained WF - Region", "Sustained WF - MN", "Non-sustained WF", "No MN employment record", "Attending ps"))
+
+
+```
+
+## Demographics
+
+### Summary
+
+Among the six demographic variables examined, effect sizes vary meaningfully across the three observation windows, though all associations are statistically significant. The rankings below reflect a general assessment across all three time points, with particular attention to the consistency and magnitude of Cramer's V values.
+
+**1. Special Education Status** (V=0.171, 0.107, 0.093) is the strongest demographic predictor overall, showing the highest effect size at year 1 and maintaining meaningful associations through year 10. Its signature is not reduced regional employment but rather persistently elevated employment instability and reduced statewide labor market mobility.
+
+**2. Economic Status** (V=0.137, 0.083, 0.091) ranks second, with a strong year 1 association driven largely by differential postsecondary attendance. By years 5 and 10 the association weakens considerably, with the most durable difference being modestly higher statewide employment among non-disadvantaged graduates and greater employment instability among disadvantaged graduates.
+
+**3. English Learner Status** (V=0.140, 0.074, 0.070) ranks third, with a strong year 1 effect that similarly reflects lower postsecondary attendance. Its most distinctive and persistent feature across all three windows is elevated absence from Minnesota employment records, a pattern that sets it apart from the other demographic predictors.
+
+**4. Non-English Home Language** (V=0.114, 0.068, 0.061) ranks fourth and closely mirrors the English learner pattern in both direction and character. Effect sizes are modestly smaller at every time point, suggesting that English learner status captures the relevant variation more precisely. Given the substantial overlap between these two variables, their independent contributions will require evaluation in multivariate models.
+
+**5. Gender** (V=0.058, 0.087, 0.107) ranks fifth overall, though notably its effect size increases across the observation windows rather than declining — the only demographic variable to do so. Its growing association reflects a widening gap in sustained regional employment favoring males and an expanding share of females carrying no MN employment record by year 10.
+
+**6. Race/Ethnicity** (V=0.069, 0.043, 0.054) shows the weakest and least consistent association across time points. While American Indian graduates show a persistently adverse profile and Asian/Pacific Islander graduates display a distinctive pattern of high MN record absence alongside relatively high statewide employment among those who remain, the overall effect size remains small at all three windows.
+
+Across all demographic variables, effect sizes fall in the weak to modest range by conventional standards, indicating that demographic characteristics alone account for limited variation in workforce participation outcomes among non-college completers. The high school accomplishment and postsecondary variables examined in subsequent sections are expected to contribute more substantially to explaining outcome variation.
+
+<br>
+
+### `Gender`
+
+Gender shows a statistically significant but modest association with workforce participation outcomes at all three time points, with Cramer's V increasing slightly across the observation windows (V=0.058 at year 1, V=0.087 at year 5, V=0.107 at year 10), indicating that the gender gap in outcomes grows somewhat more pronounced over time.
+
+At year 1, differences are small. Males are modestly more likely to be in sustained regional employment (20.7% vs. 17.4%), while females are more likely to be in non-sustained workforce participation (33.9% vs. 29.3%). Rates of postsecondary attendance and no Minnesota employment record are similar across genders.
+
+By year 5, the pattern sharpens. Males show a notably higher rate of sustained regional employment (28.5% vs. 21.8%), while females are more concentrated in non-sustained workforce participation (26.5% vs. 22.0%) and no Minnesota employment record (32.1% vs. 29.7%). The sustained MN employment category is similar across genders (14.4% female, 15.6% male).
+
+At year 10, the regional employment gap persists — 27.4% of males are in sustained regional employment compared to 21.1% of females — and males also show higher rates of sustained MN employment (19.8% vs. 15.4%). The most notable difference at year 10 is in the no Minnesota employment record category, where 42.5% of females carry no MN record compared to 35.7% of males, a gap of nearly seven percentage points. Whether this reflects greater rates of out-of-state migration, labor market withdrawal, or informal employment among women in this population cannot be determined from these data alone.
+
+Overall, gender is a consistent but modest predictor of workforce participation outcomes among non-college completers, with males more likely to achieve sustained regional employment and females more likely to be absent from Minnesota employment records by year 10.
+
+::: panel-tabset
+#### grad.year.1
+
+```{r}
+tab_xtab(var.row = data.1$grad.year.1,
+         var.col = data.1$Gender,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/Demographics/Gender-1.html")
+```
+
+#### grad.year.5
+
+```{r}
+tab_xtab(var.row = data.5$grad.year.5,
+         var.col = data.5$Gender,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/Demographics/Gender-5.html")
+```
+
+#### grad.year.10
+
+```{r}
+tab_xtab(var.row = data.10$grad.year.10,
+         var.col = data.10$Gender,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/Demographics/Gender-10.html")
+```
+:::
+
+### `RaceEthnicity`
+
+Race/ethnicity shows a statistically significant but weak association with workforce participation outcomes across all three time points, with Cramer's V remaining low and relatively stable (V=0.069 at year 1, V=0.043 at year 5, V=0.054 at year 10). The overall pattern suggests that racial and ethnic differences in outcomes are modest in magnitude, though meaningfully varied in character across groups.
+
+At year 1, the most notable differences involve the no Minnesota employment record category. American Indian graduates show the highest rate of no MN employment record (35.7%), followed closely by Asian/Pacific Islander (30.2%) and Hispanic (28.1%) graduates, compared to 18.9% among White graduates and only 14.6% among Black graduates. American Indian graduates also show the lowest rate of sustained regional employment (8.2%), well below the overall rate of 18.5%, and the lowest postsecondary attendance rate (14.0%), suggesting early and pronounced disengagement from both postsecondary and the formal labor market. Black graduates, by contrast, show comparatively higher postsecondary attendance (27.3%) and non-sustained workforce participation (33.4%) at year 1, suggesting a somewhat different transitional profile.
+
+By year 5, the patterns shift as postsecondary attendance declines across all groups. White and Hispanic graduates converge near the overall sustained regional employment rate (26.4% and 25.5%, respectively), while American Indian (17.0%), Black (17.1%), and Asian/Pacific Islander (20.6%) graduates fall below it. The no MN employment record category remains elevated for American Indian (38.9%) and Asian/Pacific Islander (37.4%) graduates relative to White graduates (29.7%), a gap that may reflect differential rates of out-of-state migration or labor market withdrawal. Hispanic graduates show a notably lower rate of statewide employment outside the region (11.0%) compared to White graduates (15.9%), potentially reflecting stronger regional labor market attachment.
+
+At year 10, White graduates show the highest sustained regional employment rate (25.5%), while Asian/Pacific Islander (14.9%) and Black (16.1%) graduates are the least likely to be in sustained regional employment. Asian/Pacific Islander graduates show the highest rate of no MN employment record at year 10 (46.7%), followed by American Indian (43.3%) and Hispanic (42.9%) graduates — all substantially above the White rate of 37.7%. A notable exception is Asian/Pacific Islander graduates' sustained MN employment rate (21.9%), the highest of any group at year 10, suggesting that those who remain in Minnesota are disproportionately employed outside the region, consistent with patterns of urban concentration. American Indian graduates show the lowest sustained MN employment rate at year 10 (4.7%), and the highest non-sustained workforce participation (29.9%), indicating persistent labor market instability within this group.
+
+Overall, race/ethnicity is a weak predictor of workforce participation outcomes in this population, but American Indian graduates consistently show the most adverse profile across all three time points, and Asian/Pacific Islander graduates display a distinctive pattern of high out-of-state or non-regional presence alongside relatively high statewide employment among those who remain.
+
+::: panel-tabset
+#### grad.year.1
+
+```{r}
+data.1 %>%
+  filter(RaceEthnicity != "Unknown") %>%
+  {tab_xtab(var.row = .$grad.year.1,
+         var.col = .$RaceEthnicity,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/Demographics/RaceEthnicity-1.html")}
+
+```
+
+#### grad.year.5
+
+```{r}
+data.5 %>%
+  filter(RaceEthnicity != "Unknown") %>%
+  {tab_xtab(var.row = .$grad.year.5,
+         var.col = .$RaceEthnicity,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/Demographics/RaceEthnicity-5.html")}
+
+
+```
+
+#### grad.year.10
+
+```{r}
+data.10 %>%
+  filter(RaceEthnicity != "Unknown") %>%
+  {tab_xtab(var.row = .$grad.year.10,
+         var.col = .$RaceEthnicity,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/Demographics/RaceEthnicity-10.html")}
+
+```
+:::
+
+<br>
+
+### `economic.status`
+
+Economic disadvantage shows a statistically significant association with workforce participation outcomes at all three time points, with Cramer's V highest at year 1 (V=0.137) and declining somewhat by year 5 (V=0.083) before partially recovering at year 10 (V=0.091). The year 1 association is notably stronger than for gender or race/ethnicity, driven largely by a striking difference in postsecondary attendance patterns.
+
+At year 1, the most pronounced difference between economically disadvantaged (1) and non-disadvantaged (0) graduates is in postsecondary attendance: 27.7% of non-disadvantaged graduates are still attending postsecondary compared to only 16.6% of disadvantaged graduates. This gap is the primary driver of the year 1 association. Economically disadvantaged graduates are more likely to be in sustained regional employment (20.7% vs. 17.7%) and non-sustained workforce participation (34.3% vs. 27.8%), consistent with earlier entry into the labor market. Rates of no MN employment record are similar across groups (21.8% vs. 20.7%).
+
+By year 5, as postsecondary attendance recedes for both groups, the distribution converges considerably. Sustained regional employment is nearly identical (25.9% disadvantaged vs. 25.5% non-disadvantaged), while non-disadvantaged graduates show a modestly higher rate of sustained statewide employment (16.5% vs. 13.8%), suggesting somewhat greater labor market mobility outside the region. Disadvantaged graduates show higher non-sustained workforce participation (26.7% vs. 21.0%), indicating less stable employment attachment at year 5.
+
+At year 10, the regional employment gap remains negligible (25.3% vs. 24.2%), but non-disadvantaged graduates continue to show higher sustained statewide employment (19.8% vs. 15.8%). Disadvantaged graduates have a notably higher rate of non-sustained workforce participation (22.0% vs. 15.8%), while non-disadvantaged graduates are somewhat more likely to carry no MN employment record (40.2% vs. 36.8%), a pattern that may reflect greater geographic mobility or out-of-state employment among the non-disadvantaged group.
+
+Overall, economic disadvantage is among the stronger demographic predictors of workforce participation in this population at year 1, primarily because disadvantaged graduates enter the labor market earlier rather than attending postsecondary. By years 5 and 10, the association weakens and the most persistent difference is in sustained statewide employment, where non-disadvantaged graduates maintain a modest advantage, alongside higher rates of employment instability among disadvantaged graduates.
+
+::: panel-tabset
+#### grad.year.1
+
+```{r}
+tab_xtab(var.row = data.1$grad.year.1,
+         var.col = data.1$economic.status,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/Demographics/economic-status-1.html")
+```
+
+#### grad.year.5
+
+```{r}
+tab_xtab(var.row = data.5$grad.year.5,
+         var.col = data.5$economic.status,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/Demographics/economic-status-5.html")
+```
+
+#### grad.year.10
+
+```{r}
+tab_xtab(var.row = data.10$grad.year.10,
+         var.col = data.10$economic.status,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/Demographics/economic-status-10.html")
+
+```
+:::
+
+<br>
+
+### `SpecialEdStatus`
+
+Special education status shows the strongest association with workforce participation outcomes among the demographic variables examined thus far, with Cramer's V highest at year 1 (V=0.171) and declining across the observation windows (V=0.107 at year 5, V=0.093 at year 10). As with economic status, the year 1 association is substantially driven by differential postsecondary attendance, but the pattern of disadvantage for special education participants is more pronounced and persists more clearly into later time points.
+
+At year 1, the most striking difference is in postsecondary attendance: 25.3% of non-special education graduates are still attending postsecondary compared to only 10.6% of special education graduates, a gap of nearly 15 percentage points. Special education graduates are substantially more likely to be in non-sustained workforce participation (38.4% vs. 29.0%) and to carry no MN employment record (27.1% vs. 19.5%). Sustained regional employment rates are nearly identical across groups (19.2% vs. 19.3%), but special education graduates show a lower rate of sustained statewide employment (4.7% vs. 6.8%), suggesting less geographic labor market mobility even at year 1.
+
+By year 5, the postsecondary attendance gap has largely closed in absolute terms (1.9% vs. 5.3%), but meaningful differences persist elsewhere. Special education graduates show a slightly higher rate of sustained regional employment (26.8% vs. 25.4%), which may reflect their earlier and more consistent entry into regional labor markets. However, they continue to trail in sustained statewide employment (10.5% vs. 16.5%) and show higher rates of non-sustained workforce participation (28.1% vs. 22.7%) and no MN employment record (32.7% vs. 30.2%).
+
+At year 10, sustained regional employment remains similar across groups (25.5% vs. 24.5%), continuing the pattern seen at year 5. The most persistent gap is in sustained statewide employment, where non-special education graduates are nearly six percentage points more likely to be sustainably employed outside the region (19.1% vs. 13.7%). Special education graduates also show substantially higher non-sustained workforce participation at year 10 (24.8% vs. 17.1%), indicating that employment instability remains an enduring characteristic of this group's labor market profile a decade after high school. Notably, special education graduates show a lower rate of no MN employment record at year 10 (35.9% vs. 39.3%), suggesting they are somewhat more likely to remain in Minnesota, though in less stable employment.
+
+Overall, special education status is the strongest demographic predictor of workforce participation outcomes in this population. Its primary signature is not reduced regional employment — where the two groups are largely comparable — but rather reduced statewide employment mobility and persistently higher rates of employment instability across all three time points.
+
+::: panel-tabset
+#### grad.year.1
+
+```{r}
+tab_xtab(var.row = data.1$grad.year.1,
+         var.col = data.1$SpecialEdStatus,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/Demographics/SpecialEdStatus-1.html")
+```
+
+#### grad.year.5
+
+```{r}
+tab_xtab(var.row = data.5$grad.year.5,
+         var.col = data.5$SpecialEdStatus,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/Demographics/SpecialEdStatus-5.html")
+
+```
+
+#### grad.year.10
+
+```{r}
+tab_xtab(var.row = data.10$grad.year.10,
+         var.col = data.10$SpecialEdStatus,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/Demographics/SpecialEdStatus-10.html")
+
+```
+:::
+
+<br>
+
+### `english.learner`
+
+English learner status shows a statistically significant association with workforce participation outcomes at all three time points, with Cramer's V strongest at year 1 (V=0.140), declining at year 5 (V=0.074), and holding relatively stable at year 10 (V=0.070). The year 1 association is again substantially driven by differential postsecondary attendance, but English learners also show a distinctive and persistent pattern of absence from Minnesota employment records across all three windows.
+
+At year 1, English learners are far less likely to be attending postsecondary (10.3% vs. 24.0%), a gap of nearly 14 percentage points that closely mirrors the pattern seen for special education status. Despite this earlier labor market entry, English learners are not more likely to achieve sustained regional employment (20.7% vs. 19.0%) — rates are nearly identical — but they are substantially more likely to carry no MN employment record (31.1% vs. 19.5%). This combination of lower postsecondary attendance and higher absence from MN employment records suggests that a meaningful share of English learners are neither in postsecondary nor captured in the formal Minnesota labor market at year 1, possibly reflecting employment in informal economies, agricultural or seasonal work not captured in wage records, or residence outside Minnesota.
+
+By year 5, the postsecondary attendance gap has narrowed considerably in absolute terms (2.0% vs. 4.9%), but the no MN employment record gap persists — 36.2% of English learners carry no MN record compared to 30.0% of non-English learners. English learners also show lower rates of sustained statewide employment (11.5% vs. 15.6%), while sustained regional employment is modestly lower (23.4% vs. 26.0%). Non-sustained workforce participation is slightly elevated among English learners (26.9% vs. 23.5%).
+
+At year 10, the no MN employment record gap widens further: 45.9% of English learners carry no MN record compared to 37.9% of non-English learners, a difference of eight percentage points that is the largest category-level gap at this time point. English learners also show substantially lower sustained statewide employment (11.0% vs. 18.5%) and modestly lower sustained regional employment (20.4% vs. 25.1%), while non-sustained workforce participation remains elevated (22.7% vs. 18.4%).
+
+Overall, English learner status is associated with a consistent and growing absence from Minnesota employment records across the three observation windows, alongside reduced labor market mobility outside the region. Whether this reflects geographic departure, employment in sectors not captured by wage records, or other structural factors cannot be determined from these data, but the pattern distinguishes English learners from other demographic subgroups in meaningful ways.
+
+::: panel-tabset
+#### grad.year.1
+
+```{r}
+tab_xtab(var.row = data.1$grad.year.1,
+         var.col = data.1$english.learner,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/Demographics/english-learner-1.html")
+```
+
+#### grad.year.5
+
+```{r}
+tab_xtab(var.row = data.5$grad.year.5,
+         var.col = data.5$english.learner,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/Demographics/english-learner-5.html")
+
+```
+
+#### grad.year.10
+
+```{r}
+tab_xtab(var.row = data.10$grad.year.10,
+         var.col = data.10$english.learner,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/Demographics/english-learner-10.html")
+
+```
+:::
+
+<br>
+
+### `non.english.home`
+
+Non-English home language shows a statistically significant association with workforce participation outcomes at all three time points, with Cramer's V declining from year 1 (V=0.114) through year 5 (V=0.068) to year 10 (V=0.061). The overall pattern closely resembles that observed for English learner status, which is unsurprising given the overlap between these populations, though the effect sizes are modestly smaller across all time points, suggesting that English learner status captures the relevant variation somewhat more precisely.
+
+At year 1, graduates from non-English speaking homes are considerably less likely to be attending postsecondary (14.3% vs. 23.1%) and substantially more likely to carry no MN employment record (31.6% vs. 19.6%). Sustained regional employment rates are nearly identical (20.0% vs. 19.2%), again echoing the English learner pattern — earlier labor market entry does not translate into higher rates of sustained regional employment, but rather into elevated absence from MN employment records altogether.
+
+By year 5, the postsecondary attendance gap has effectively closed (4.0% vs. 4.6%), but the no MN employment record gap remains pronounced: 38.2% of non-English home graduates carry no MN record compared to 29.7% of English home graduates, a gap of more than eight percentage points. Non-English home graduates also show lower sustained statewide employment (11.3% vs. 15.7%), while sustained regional and non-sustained workforce participation rates are similar across groups.
+
+At year 10, the no MN employment record gap persists and widens slightly — 46.6% of non-English home graduates carry no MN record compared to 37.5% of English home graduates. Sustained regional employment (21.1% vs. 25.2%) and sustained statewide employment (14.7% vs. 18.4%) both remain lower for non-English home graduates, while non-sustained workforce participation is modestly similar (17.6% vs. 18.9%).
+
+The pattern for non-English home language is substantively consistent with English learner status across all three time points: lower postsecondary attendance at year 1, persistently elevated absence from MN employment records, and reduced statewide labor market mobility. Given the strong overlap between these two variables, their independent contributions will be better assessed in the multivariate models, where one or the other may be retained based on relative predictive utility.
+
+::: panel-tabset
+#### grad.year.1
+
+```{r}
+tab_xtab(var.row = data.1$grad.year.1,
+         var.col = data.1$non.english.home,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/Demographics/non-english-home-1.html")
+```
+
+#### grad.year.5
+
+```{r}
+tab_xtab(var.row = data.5$grad.year.5,
+         var.col = data.5$non.english.home,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/Demographics/non-english-home-5.html")
+
+```
+
+#### grad.year.10
+
+```{r}
+tab_xtab(var.row = data.10$grad.year.10,
+         var.col = data.10$non.english.home,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/Demographics/non-english-home-10.html")
+
+```
+:::
+
+<br>
+
+## High school characteristics
+
+### Summary
+
+Among the four high school characteristics and labor market variables examined, effect sizes are generally weak, consistent with findings from the full population analyses where these variables showed limited associations and several were excluded from multivariate models.
+
+**1. Economic Development Region (EDR)** (V=0.093, 0.103, 0.107) is the strongest predictor in this group, with effect sizes that grow modestly but consistently across the three observation windows. Its most distinctive and durable finding is that EDR 6E (Southwest Central) graduates show substantially higher sustained statewide employment than graduates from EDR 6W or EDR 8 at every time point — a gap that widens to nearly nine percentage points by year 5 — while sustained regional employment rates are remarkably similar across all three EDRs. Geographic sub-region within Southwest Minnesota appears to matter primarily for whether non-college completers achieve broader state labor market mobility rather than for regional employment itself.
+
+**2. Average County Unemployment Rate** produces the largest F-statistics of any continuous variable in this group (F=31.3, 44.5, 54.7) and shows a strengthening relationship over time. Its most consistent finding is that graduates achieving sustained statewide employment outside the region disproportionately originate from higher-unemployment counties, consistent with a labor market push dynamic, while the no MN employment record group shows unemployment rate profiles indistinguishable from sustained regional workers, suggesting out-of-state departure rather than intra-state mobility.
+
+**3. Community Demographic Description (Dem_Desc)** (V=0.054, 0.078, 0.094) ranks third, with effect sizes that increase over time but remain weak throughout. Its most interpretable pattern is that town/rural mix graduates are most anchored to sustained regional employment, urban/town/rural mix graduates show growing statewide labor market mobility, and entirely rural graduates show increasingly elevated absence from Minnesota employment records by year 10. Despite statistically significant associations, effect sizes are too small to add meaningful explanatory value beyond other variables in multivariate models.
+
+**4. Average County Wages as Percent of State Average** produces significant F-statistics (F=35.3, 24.0, 26.1) but the smallest absolute differences of any variable in this group — all contrasts fall within one to two percentage points of the state average. Its only durable and practically interpretable finding mirrors the unemployment rate variable: graduates in sustained statewide employment consistently come from lower-wage counties, reinforcing the labor market push interpretation. The negligible absolute magnitude of differences across groups limits its practical significance.
+
+Taken together, the high school characteristics and labor market variables account for limited variation in workforce participation outcomes among non-college completers in bivariate analysis. EDR and county unemployment rate show the most interpretable and consistent patterns, both pointing toward a geographic push dynamic in which less favorable local labor market conditions are associated with out-of-region employment among those who do find sustained work. Community demographic description and county wages, while statistically significant, are unlikely to contribute meaningfully in multivariate models and were appropriately excluded from the full population analyses for similar reasons.
+
+<br>
+
+### `Dem_Desc`
+
+Community demographic description shows a statistically significant but weak association with workforce participation outcomes across all three time points, with Cramer's V increasing slightly over time (V=0.054 at year 1, V=0.078 at year 5, V=0.094 at year 10). The three community types — entirely rural, town/rural mix, and urban/town/rural mix — produce modest but patterned differences, with the most distinctive feature being the behavior of the urban/town/rural mix category on statewide employment outside the region.
+
+At year 1, entirely rural graduates show the lowest rate of sustained regional employment (15.9%) and the highest rate of postsecondary attendance (26.4%), while town/rural mix graduates are most likely to be in sustained regional employment (20.5%). Urban/town/rural mix graduates show the highest rate of sustained statewide employment (8.5% vs. 6.1% and 4.7%), suggesting greater proximity to or awareness of labor markets outside the region. Entirely rural graduates carry the highest rate of no MN employment record (23.9%).
+
+By year 5, the town/rural mix continues to show the highest sustained regional employment (27.1%), while the urban/town/rural mix stands out sharply on sustained statewide employment (22.7% vs. 14.1% and 11.9%) — a gap that has widened considerably from year 1. Entirely rural graduates show the highest no MN employment record rate at year 5 (36.8%), nearly seven percentage points above the overall rate, and the lowest sustained statewide employment (11.9%).
+
+At year 10, the urban/town/rural mix pattern intensifies further on statewide employment (27.8% vs. 16.6% and 13.6%), now the single most distinctive feature of this variable. Town/rural mix graduates maintain the highest sustained regional employment (26.6%), while entirely rural graduates show the highest no MN employment record rate (46.1%), well above both the town/rural mix (37.3%) and urban/town/rural mix (38.5%) groups.
+
+Overall, community demographic description shows a consistent and interpretable pattern: town/rural mix graduates are most anchored to regional employment, urban/town/rural mix graduates show growing statewide labor market mobility over time, and entirely rural graduates are increasingly likely to be absent from Minnesota employment records by year 10. Despite these meaningful directional patterns, effect sizes remain weak across all time points, consistent with findings from the full population analyses where this variable showed negligible associations and was ultimately excluded from multivariate models.
+
+::: panel-tabset
+#### grad.year.1
+
+```{r}
+tab_xtab(var.row = data.1$grad.year.1,
+         var.col = data.1$Dem_Desc,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/High school characteristics/Dem-Desc-1.html")
+```
+
+#### grad.year.5
+
+```{r}
+tab_xtab(var.row = data.5$grad.year.5,
+         var.col = data.5$Dem_Desc,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/High school characteristics/Dem-Desc-5.html")
+
+```
+
+#### grad.year.10
+
+```{r}
+tab_xtab(var.row = data.10$grad.year.10,
+         var.col = data.10$Dem_Desc,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/High school characteristics/Dem-Desc-10.html")
+```
+:::
+
+<br>
+
+### `edr`
+
+Economic development region shows a statistically significant and gradually strengthening association with workforce participation outcomes across the three time points (V=0.093 at year 1, V=0.103 at year 5, V=0.107 at year 10). While effect sizes remain modest, the patterns are substantively interpretable and reflect meaningful geographic differences in labor market attachment and mobility across the three EDRs — Southwest Central (6E), Upper Minnesota Valley (6W), and Southwest (8).
+
+At year 1, the most notable difference across EDRs is in sustained statewide employment: EDR 6E graduates show the highest rate (8.6%), well above EDR 6W (5.8%) and EDR 8 (4.5%). EDR 6E graduates are also less likely to carry no MN employment record (17.7%) than EDR 6W (21.2%) or EDR 8 (24.5%), while EDR 8 graduates show the highest postsecondary attendance rate (24.7%) and the lowest non-sustained workforce participation (27.6%). Sustained regional employment rates are similar across all three EDRs, ranging narrowly from 18.5% to 20.5%.
+
+By year 5, sustained regional employment has converged further across EDRs (25.1%, 25.1%, and 26.5%), while the statewide employment gap has widened considerably. EDR 6E graduates show a sustained statewide employment rate of 20.7%, compared to 12.5% for EDR 6W and 11.4% for EDR 8 — a gap of nearly nine percentage points that is the most distinctive feature of the year 5 distribution. The no MN employment record rate is lowest for EDR 6E (25.1%) and highest for EDR 8 (35.1%), with EDR 6W falling between (32.1%).
+
+At year 10, EDR 6E continues to show the highest sustained statewide employment (24.8%), more than double the EDR 8 rate (12.8%) and substantially above EDR 6W (15.9%). Sustained regional employment is similar across EDRs (23.3%, 24.8%, 26.0%), again showing little differentiation. The no MN employment record rate is lowest in EDR 6E (33.2%) and highest in EDR 8 (43.2%), a ten-percentage-point gap that reflects persistent geographic differences in either labor market engagement or out-of-state migration.
+
+The consistent pattern across all three time points is that EDR 6E graduates — from the Southwest Central region, which includes Marshall and is the most economically connected of the three EDRs — show greater statewide labor market mobility and lower rates of MN employment record absence, while EDR 8 graduates show the opposite. Sustained regional employment rates are remarkably similar across EDRs at every time point, suggesting that geographic sub-region within Southwest Minnesota matters primarily for whether non-college completers move into broader state labor markets or disengage from Minnesota employment altogether, rather than for regional employment itself.
+
+::: panel-tabset
+#### grad.year.1
+
+```{r}
+tab_xtab(var.row = data.1$grad.year.1,
+         var.col = data.1$edr,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/High school characteristics/edr-1.html")
+```
+
+#### grad.year.5
+
+```{r}
+tab_xtab(var.row = data.5$grad.year.5,
+         var.col = data.5$edr,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/High school characteristics/edr-5.html")
+
+```
+
+#### grad.year.10
+
+```{r}
+tab_xtab(var.row = data.10$grad.year.10,
+         var.col = data.10$edr,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/High school characteristics/edr-10.html")
+```
+:::
+
+<br>
+
+### `avg.unemp.rate`
+
+The average county unemployment rate shows a statistically significant association with workforce participation outcomes at all three time points, with F-statistics increasing over time (F=31.3 at year 1, F=44.5 at year 5, F=54.7 at year 10), indicating a strengthening relationship as graduates settle into more stable labor market positions.
+
+At year 1, Tukey post-hoc comparisons indicate that graduates in sustained regional employment live in counties with meaningfully lower average unemployment rates than those in sustained statewide employment (difference of 0.24 percentage points), non-sustained workforce participation (0.22 points), and those attending postsecondary (0.24 points). The difference between sustained regional employment and no MN employment record is small and not statistically significant, suggesting that early absence from Minnesota employment is not strongly differentiated from regional employment by county unemployment conditions at year 1. Non-sustained workforce participation and postsecondary attendance show similar unemployment rate profiles to each other, while the no MN employment record group is associated with notably lower unemployment rates than non-sustained workers (−0.16 points), a pattern that may reflect out-of-state migration from lower-unemployment counties.
+
+By year 5, the pattern sharpens considerably. Sustained regional employment is now associated with lower county unemployment rates than no MN employment record (−0.11 points, significant), and sustained statewide employment is associated with the highest unemployment rates of any group — 0.30 points above sustained regional employment — a gap that has grown substantially from year 1. This suggests that graduates who achieve statewide employment outside the region are more likely to come from higher- unemployment counties, consistent with a pattern of labor market push — moving out of the region in response to limited local opportunity. Non-sustained workers and those with no MN record both show lower unemployment rates than sustained statewide workers, with the no MN record group showing the lowest unemployment environment of any category (0.42 points below sustained statewide).
+
+At year 10, the unemployment rate gradient across outcome categories is most pronounced. Sustained statewide employment is associated with the highest county unemployment rates, now 0.42 points above sustained regional employment — the largest gap observed across all three time points. Non-sustained workforce participation also shows higher unemployment rates than sustained regional employment (0.15 points). The no MN employment record group continues to show unemployment rate profiles indistinguishable from sustained regional employment, while being substantially lower than sustained statewide (−0.44 points) and non-sustained workers (−0.17 points).
+
+Overall, county unemployment rate shows a consistent and interpretable pattern: graduates who remain in sustained regional employment tend to come from lower-unemployment counties, while those who achieve sustained statewide employment outside the region disproportionately originate from higher-unemployment counties, a gap that widens over time. This is consistent with a labor market displacement or push dynamic in which higher local unemployment encourages out-of-region employment among those who do find sustained work, while those with no MN record appear to have left the state rather than moved within it.
+
+::: panel-tabset
+#### grad.year.1
+
+```{r}
+summary <- aov(avg.unemp.rate ~ grad.year.1, data = data.1)
+
+summary
+
+anova_df <- broom::tidy(summary)
+
+TukeyHSD(summary)
+
+tukey_df <- broom::tidy(TukeyHSD(summary))
+
+wb <- createWorkbook()
+addWorksheet(wb, "ANOVA")
+addWorksheet(wb, "TukeyHSD")
+writeData(wb, "ANOVA", anova_df)
+writeData(wb, "TukeyHSD", tukey_df)
+saveWorkbook(wb, "Data/Claude/analysis_non_post_secondary_grads_ct/High school characteristics/avg-unemp-rate-1.xlsx", overwrite = TRUE)
+
+```
+
+#### grad.year.5
+
+```{r}
+summary <- aov(avg.unemp.rate ~ grad.year.5, data = data.5)
+
+
+summary
+
+anova_df <- broom::tidy(summary)
+
+TukeyHSD(summary)
+
+tukey_df <- broom::tidy(TukeyHSD(summary))
+
+wb <- createWorkbook()
+addWorksheet(wb, "ANOVA")
+addWorksheet(wb, "TukeyHSD")
+writeData(wb, "ANOVA", anova_df)
+writeData(wb, "TukeyHSD", tukey_df)
+saveWorkbook(wb, "Data/Claude/analysis_non_post_secondary_grads_ct/High school characteristics/avg-unemp-rate-5.xlsx", overwrite = TRUE)
+```
+
+#### grad.year.10
+
+```{r}
+summary <- aov(avg.unemp.rate ~ grad.year.10, data = data.10)
+
+summary
+
+anova_df <- broom::tidy(summary)
+
+TukeyHSD(summary)
+
+tukey_df <- broom::tidy(TukeyHSD(summary))
+
+wb <- createWorkbook()
+addWorksheet(wb, "ANOVA")
+addWorksheet(wb, "TukeyHSD")
+writeData(wb, "ANOVA", anova_df)
+writeData(wb, "TukeyHSD", tukey_df)
+saveWorkbook(wb, "Data/Claude/analysis_non_post_secondary_grads_ct/High school characteristics/avg-unemp-rate-10.xlsx", overwrite = TRUE)
+```
+:::
+
+<br>
+
+### `avg.wages.pct.state`
+
+Average county wages as a percent of the state average shows a statistically significant association with workforce participation outcomes at all three time points, though F-statistics decline somewhat over time (F=35.3 at year 1, F=24.0 at year 5, F=26.1 at year 10), suggesting the relationship is strongest early and stabilizes at a modest level. Importantly, the differences in the wage measure across outcome categories are very small in absolute terms — all estimates are in the range of one to two percentage points of the state average — which limits their practical significance despite statistical significance.
+
+At year 1, graduates in sustained regional employment come from counties with the highest average wages relative to the state, while those in sustained statewide employment come from counties with notably lower wages (0.013 percentage points below sustained regional, significant). Those attending postsecondary come from counties with wages slightly above sustained regional employment (0.008 points), while non-sustained workers and those with no MN employment record show wage environments modestly below sustained regional levels, though the no MN record difference is not statistically significant. The pattern suggests that at year 1, regional employment is concentrated among graduates from relatively higher-wage counties within the region.
+
+By year 5, the only statistically significant contrast involves sustained statewide employment, which is associated with counties whose wages are 0.015 percentage points below sustained regional employment — a gap that is consistent with year 1 and suggests that out-of-region employment is persistently associated with lower local wage environments. All other pairwise contrasts involving sustained regional employment are non-significant at year 5, indicating that non-sustained workers, those with no MN record, and postsecondary attendees come from counties with similar wage profiles to those in sustained regional employment.
+
+At year 10, the same dominant contrast persists: sustained statewide employment is associated with counties whose wages are 0.016 percentage points below sustained regional employment, the most statistically robust finding across all three time points for this variable. Non-sustained workforce participation and no MN employment record show wage environments slightly below sustained regional employment, though only the statewide employment contrast reaches strong significance.
+
+Overall, average county wages as a percent of the state average shows a consistent but very small association with workforce participation outcomes. The most interpretable and durable finding is that graduates who achieve sustained statewide employment outside the region disproportionately originate from lower-wage counties — a pattern that complements the unemployment rate findings and reinforces the labor market push interpretation. The absolute magnitude of wage differences across groups is too small to carry substantial practical weight, and this variable was appropriately excluded from multivariate models in the full population analyses.
+
+::: panel-tabset
+#### grad.year.1
+
+```{r}
+summary <- aov(avg.wages.pct.state ~ grad.year.1, data = data.1)
+
+summary
+
+anova_df <- broom::tidy(summary)
+
+TukeyHSD(summary)
+
+tukey_df <- broom::tidy(TukeyHSD(summary))
+
+wb <- createWorkbook()
+addWorksheet(wb, "ANOVA")
+addWorksheet(wb, "TukeyHSD")
+writeData(wb, "ANOVA", anova_df)
+writeData(wb, "TukeyHSD", tukey_df)
+saveWorkbook(wb, "Data/Claude/analysis_non_post_secondary_grads_ct/High school characteristics/avg-wages-pct-state-1.xlsx", overwrite = TRUE)
+
+```
+
+#### grad.year.5
+
+```{r}
+summary <- aov(avg.wages.pct.state ~ grad.year.5, data = data.5)
+
+summary
+
+anova_df <- broom::tidy(summary)
+
+TukeyHSD(summary)
+
+tukey_df <- broom::tidy(TukeyHSD(summary))
+
+wb <- createWorkbook()
+addWorksheet(wb, "ANOVA")
+addWorksheet(wb, "TukeyHSD")
+writeData(wb, "ANOVA", anova_df)
+writeData(wb, "TukeyHSD", tukey_df)
+saveWorkbook(wb, "Data/Claude/analysis_non_post_secondary_grads_ct/High school characteristics/avg-wages-pct-state-5.xlsx", overwrite = TRUE)
+
+```
+
+#### grad.year.10
+
+```{r}
+summary <- aov(avg.wages.pct.state ~ grad.year.10, data = data.10)
+
+summary
+
+anova_df <- broom::tidy(summary)
+
+TukeyHSD(summary)
+
+tukey_df <- broom::tidy(TukeyHSD(summary))
+
+wb <- createWorkbook()
+addWorksheet(wb, "ANOVA")
+addWorksheet(wb, "TukeyHSD")
+writeData(wb, "ANOVA", anova_df)
+writeData(wb, "TukeyHSD", tukey_df)
+saveWorkbook(wb, "Data/Claude/analysis_non_post_secondary_grads_ct/High school characteristics/avg-wages-pct-state-10.xlsx", overwrite = TRUE)
+
+```
+:::
+
+<br>
+
+## High school accomplishments
+
+### Summary
+
+Among the high school accomplishments variables examined, effect sizes span a wider range than the demographic or high school characteristics groups, and the variables divide clearly into two clusters that mirror the two-pathway structure identified in the full population analysis — academic pathway variables associated with statewide employment and CTE pathway variables associated with regional employment.
+
+**1. ACT Participation** (V=0.302, 0.155, 0.108) is the strongest predictor in this group and the strongest single variable examined in the entire bivariate analysis thus far. Its dominant year 1 effect is driven by a nearly 24-percentage- point postsecondary attendance gap, but its most durable signature across all three time points is substantially higher sustained statewide employment and lower sustained regional employment among ACT takers — the clearest expression of the academic pathway among non-college completers.
+
+**2. Total CTE Courses Taken** produces the highest F-statistics of any continuous variable in the group (F=146.8, 101.3, 62.1) and shows the strongest and most consistent advantage for sustained regional employment of any variable examined. Its mirror-image relationship to ACT participation is striking: where ACT predicts statewide mobility, CTE course volume predicts regional attachment, with the no MN employment record group consistently showing the lowest CTE engagement at every time point.
+
+**3. AP Exam Participation** (V=0.149, 0.101, 0.065) ranks third, showing a pattern nearly identical in character to ACT participation — high postsecondary attendance early, lower regional employment, and persistently higher statewide employment — but with smaller effect sizes throughout and greater attenuation by year 10. AP participants represent a small share of this non-completer population, which limits the practical weight of this variable relative to ACT participation.
+
+**4. MCA Reading Score** (F=144.3, 42.0, 28.0) is the strongest of the three MCA measures, consistent with its role as the primary academic achievement indicator in the full population multivariate models. Its gradient is clear and durable: higher scores are associated with statewide employment and — increasingly over time — absence from Minnesota employment records, while regional employment and non-sustained work occupy the lowest achievement tier at every time point.
+
+**5. MCA Science Score** (F=84.4, 38.1, 25.1) closely replicates the MCA Reading pattern across all three time points, including the three-tier consolidation at year 10. As in the full population analysis, its voluntary and self- selected nature limits its utility in multivariate models, but its bivariate associations confirm the broader academic achievement gradient.
+
+**6. MCA Math Score** (F=89.4, 36.0, 34.6) produces a pattern consistent with MCA Reading and Science but with somewhat lower F-statistics at years 1 and 5. Its year 10 F-statistic (34.6) exceeds MCA Reading (28.0), suggesting that math achievement may carry slightly more differentiation at the later time point, though the substantive pattern is identical across all three MCA measures.
+
+**7. CTE Achievement** (V=0.094, 0.106, 0.115) is the strongest categorical CTE variable and shows a growing association over time — the only accomplishments variable whose effect size increases at every time point. Its signature is the most distinctive in the group: CTE concentrators and completers show progressively higher sustained regional employment and lower no MN employment record rates relative to the no CTE group, with a 15- percentage-point regional employment gap emerging by year 10.
+
+**8. PSEO Participation** (V=0.186, 0.072, 0.082) ranks eighth, with a strong year 1 association driven almost entirely by an 18-percentage-point postsecondary attendance gap. Once postsecondary attendance equalizes, its most durable finding is a persistent tendency toward statewide rather than regional employment, consistent with the academic pathway, but its effect sizes at years 5 and 10 are among the smallest in this group.
+
+Across the high school accomplishments group, two conclusions stand out. First, the academic-CTE divide is fully present even within the non-college completer population: academic indicators predict statewide labor market mobility while CTE indicators predict regional attachment, regardless of whether a credential was earned. Second, CTE course volume and ACT participation are the two strongest individual predictors in this group, and their opposing signatures make them the most analytically important variables for distinguishing workforce participation trajectories among non-college completers.
+
+<br>
+
+### `pseo.participant`
+
+PSEO participation shows a statistically significant association with workforce participation outcomes at all three time points, with Cramer's V declining sharply from year 1 (V=0.186) to year 5 (V=0.072) and recovering modestly at year 10 (V=0.082). As with several demographic variables, the strong year 1 association is substantially driven by differential postsecondary attendance, which is expected given that PSEO participants have already demonstrated postsecondary engagement before graduating high school. It is worth noting that this analysis is restricted to 2011 cohorts and later, where PSEO data are available, which reduces sample sizes relative to other variables.
+
+At year 1, the dominant finding is that PSEO participants are far more likely to still be attending postsecondary (34.8% vs. 16.6%), a gap of 18 percentage points that is the primary driver of the year 1 effect size. Among those not attending postsecondary, PSEO participants show lower sustained regional employment (16.3% vs. 21.0%) and notably lower no MN employment record rates (14.3% vs. 23.4%), suggesting that PSEO participants who do not complete postsecondary are more likely to be engaged in the labor market in some form — even if not sustained regionally — than non-PSEO graduates who similarly lack a MN employment record. Non-sustained workforce participation is also somewhat lower among PSEO participants (28.3% vs. 32.1%).
+
+By year 5, postsecondary attendance has declined for both groups but remains notably higher among PSEO participants (5.7% vs. 3.3%), consistent with longer postsecondary enrollment spells. The most distinctive shift is in sustained statewide employment, where PSEO participants show a higher rate (18.9% vs. 14.6%), while sustained regional employment is modestly lower (23.4% vs. 26.2%). This pattern — higher statewide and lower regional employment among PSEO participants — is consistent with the broader academic pathway finding that postsecondary-oriented graduates tend toward employment outside the region. No MN employment record rates are similar across groups at year 5 (29.5% vs. 31.8%).
+
+At year 10, the statewide employment gap is most pronounced: 24.6% of PSEO participants are in sustained statewide employment compared to 16.7% of non-participants — a difference of nearly eight percentage points. Sustained regional employment is lower among PSEO participants (18.6% vs. 23.9%), and no MN employment record rates are nearly identical (39.8% vs. 40.8%). The year 10 profile of PSEO participants among non-college completers closely mirrors the academic pathway pattern identified in the full population analysis — greater statewide labor market mobility and reduced regional attachment — even among those who ultimately did not complete a postsecondary credential.
+
+Overall, PSEO participation is among the stronger predictors in the high school accomplishments group at year 1, but its association attenuates substantially once postsecondary attendance equalizes. Its most durable finding is a persistent tendency toward statewide rather than regional employment among PSEO participants who did not complete a credential, suggesting that the academic orientation associated with PSEO shapes labor market geography even in the absence of credential completion.
+
+::: panel-tabset
+#### grad.year.1
+
+```{r}
+tab_xtab(var.row = data.1$grad.year.1,
+         var.col = data.1$pseo.participant,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/pseo-participant-1.html")
+
+
+```
+
+#### grad.year.5
+
+```{r}
+tab_xtab(var.row = data.5$grad.year.5,
+         var.col = data.5$pseo.participant,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/pseo-participant-5.html")
+
+
+```
+
+#### grad.year.10
+
+```{r}
+tab_xtab(var.row = data.10$grad.year.10,
+         var.col = data.10$pseo.participant,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/pseo-participant-10.html")
+
+
+```
+:::
+
+<br>
+
+### `took.ACT` 
+
+ACT participation shows the strongest bivariate association with workforce participation outcomes of any variable examined thus far, with Cramer's V of 0.302 at year 1 — a moderate effect by conventional standards and well above any other variable in the demographic or high school characteristics groups. The association declines substantially over time (V=0.155 at year 5, V=0.108 at year 10) but remains among the strongest predictors at every time point.
+
+At year 1, the association is driven primarily by two large gaps. ACT takers are far more likely to still be attending postsecondary (34.7% vs. 10.9%), a gap of nearly 24 percentage points that reflects the strong overlap between ACT participation and postsecondary pursuit. Simultaneously, ACT takers show a dramatically lower rate of no MN employment record (13.8% vs. 27.7%), suggesting that non-ACT graduates who are not in postsecondary are also more likely to be absent from Minnesota employment altogether. ACT takers show lower sustained regional employment at year 1 (17.1% vs. 21.2%), consistent with their higher postsecondary attendance delaying labor market entry, and lower non-sustained workforce participation (28.3% vs. 33.8%). Statewide employment rates are similar across groups at year 1 (6.1% vs. 6.5%).
+
+By year 5, the postsecondary attendance gap has narrowed but remains notable (7.2% vs. 2.4%), indicating that ACT takers who did not complete a credential are still exiting postsecondary more slowly. The most striking year 5 difference is in sustained statewide employment: ACT takers show a rate of 18.7% compared to 12.2% for non-ACT graduates — a six-percentage-point gap reflecting the greater out-of-region labor market mobility associated with academic orientation. ACT takers also show lower sustained regional employment (23.9% vs. 27.1%) and lower no MN employment record rates (26.8% vs. 33.9%), suggesting that by year 5 they are more engaged in the formal Minnesota labor market overall, but disproportionately outside the region.
+
+At year 10, the statewide employment gap remains the dominant feature: 23.1% of ACT takers are in sustained statewide employment compared to 15.0% of non-ACT graduates — a gap of more than eight percentage points that has held or widened relative to year 5. ACT takers continue to show lower sustained regional employment (22.3% vs. 26.1%) and lower non-sustained workforce participation (16.3% vs. 20.1%), while no MN employment record rates are nearly identical across groups (38.3% vs. 38.8%).
+
+Overall, ACT participation is the strongest single predictor of workforce participation outcomes in this population at year 1 and remains among the strongest at years 5 and 10. Its signature — higher postsecondary attendance early, lower regional employment, and substantially higher statewide employment across all time points — is fully consistent with the academic pathway identified in the full population analysis. Even among non-college completers, ACT participation marks a distinctly different labor market trajectory toward statewide rather than regional employment.
+
+::: panel-tabset
+#### grad.year.1
+
+```{r}
+tab_xtab(var.row = data.1$grad.year.1,
+         var.col = data.1$took.ACT,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/took-ACT-1.html")
+
+
+```
+
+#### grad.year.5
+
+```{r}
+tab_xtab(var.row = data.5$grad.year.5,
+         var.col = data.5$took.ACT,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/took-ACT-5.html")
+
+
+```
+
+#### grad.year.10
+
+```{r}
+tab_xtab(var.row = data.10$grad.year.10,
+         var.col = data.10$took.ACT,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/took-ACT-10.html")
+
+
+```
+:::
+
+<br>
+
+### `ACTCompositeScore`
+
+ACT Composite Score shows a statistically significant association with workforce participation outcomes at all three time points among the subset of non-college completers who took the ACT, with F-statistics declining over time (F=114.2 at year 1, F=44.6 at year 5, F=18.3 at year 10). Mean score differences across outcome categories are meaningful in magnitude, ranging up to approximately 2.6 score points at year 1 and remaining substantial at later time points.
+
+At year 1, graduates still attending postsecondary show by far the highest mean ACT scores — 2.6 points above those in sustained regional employment, 1.8 points above sustained statewide employment, and roughly 1.7 points above both non-sustained workers and those with no MN employment record. Among those already in the labor market, sustained regional employment is associated with the lowest mean ACT scores of any workforce participation category, while sustained statewide employment is about 0.79 points higher. Non-sustained workers and those with no MN employment record show nearly identical score profiles to each other and fall between sustained regional and statewide employment, with neither differing significantly from the other. This pattern confirms that even within non- college completers, higher ACT performance is associated with delayed labor market entry via continued postsecondary attendance, and among those already working, with employment outside the region.
+
+By year 5, the attending postsecondary group continues to show the highest mean scores (2.5 points above sustained regional), but the pattern among workforce categories has sharpened considerably. Sustained statewide employment now shows scores 1.1 points above sustained regional employment, and the no MN employment record group — whose scores at year 1 were indistinguishable from non-sustained workers — now shows scores 1.3 points above sustained regional employment and nearly identical to sustained statewide employment. Non- sustained workforce participation shows scores below both sustained categories and is statistically lower than sustained statewide employment (−0.82 points). This suggests that by year 5, higher ACT performance among non-college completers is associated with either sustained out-of-region employment or absence from Minnesota employment records, potentially reflecting out-of-state employment among higher-scoring graduates.
+
+At year 10, the gradient has simplified and stabilized. Sustained statewide employment shows the highest mean ACT scores, 1.4 points above sustained regional employment — the largest gap between these two categories across all three time points. The no MN employment record group shows scores 1.3 points above sustained regional employment and is statistically indistinguishable from sustained statewide employment, reinforcing the pattern that higher-scoring non-college completers are increasingly concentrated in either out-of-region Minnesota employment or out-of-state employment by year 10. Non-sustained workforce participation scores fall 0.65 points below sustained statewide employment. Sustained regional employment consistently shows the lowest mean ACT scores of any labor market category at all three time points.
+
+Overall, ACT Composite Score produces a clear and durable pattern: higher scores among non-college completers are associated with delayed labor market entry, out-of-region statewide employment, and — increasingly over time — absence from Minnesota employment records altogether. Regional employment is consistently associated with the lowest mean scores. This mirrors the academic pathway identified in the full population analysis and suggests that academic ability, as measured by the ACT, shapes labor market geography even among those who do not ultimately complete a postsecondary credential.
+
+::: panel-tabset
+#### grad.year.1
+
+```{r}
+summary <- aov(ACTCompositeScore ~ grad.year.1, data = data.1)
+
+summary
+
+anova_df <- broom::tidy(summary)
+
+TukeyHSD(summary)
+
+tukey_df <- broom::tidy(TukeyHSD(summary))
+
+wb <- createWorkbook()
+addWorksheet(wb, "ANOVA")
+addWorksheet(wb, "TukeyHSD")
+writeData(wb, "ANOVA", anova_df)
+writeData(wb, "TukeyHSD", tukey_df)
+saveWorkbook(wb, "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/ACTCompositeScore-1.xlsx", overwrite = TRUE)
+
+```
+
+#### grad.year.5
+
+```{r}
+summary <- aov(ACTCompositeScore ~ grad.year.5, data = data.5)
+
+summary
+
+anova_df <- broom::tidy(summary)
+
+TukeyHSD(summary)
+
+tukey_df <- broom::tidy(TukeyHSD(summary))
+
+wb <- createWorkbook()
+addWorksheet(wb, "ANOVA")
+addWorksheet(wb, "TukeyHSD")
+writeData(wb, "ANOVA", anova_df)
+writeData(wb, "TukeyHSD", tukey_df)
+saveWorkbook(wb, "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/ACTCompositeScore-5.xlsx", overwrite = TRUE)
+
+```
+
+#### grad.year.10
+
+```{r}
+summary <- aov(ACTCompositeScore ~ grad.year.10, data = data.10)
+
+summary
+
+anova_df <- broom::tidy(summary)
+
+TukeyHSD(summary)
+
+tukey_df <- broom::tidy(TukeyHSD(summary))
+
+wb <- createWorkbook()
+addWorksheet(wb, "ANOVA")
+addWorksheet(wb, "TukeyHSD")
+writeData(wb, "ANOVA", anova_df)
+writeData(wb, "TukeyHSD", tukey_df)
+saveWorkbook(wb, "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/ACTCompositeScore-10.xlsx", overwrite = TRUE)
+
+```
+:::
+
+<br>
+
+### `ap.exam` 
+
+AP exam participation shows a statistically significant association with workforce participation outcomes at all three time points, with Cramer's V declining substantially over time (V=0.149 at year 1, V=0.101 at year 5, V=0.065 at year 10). It is worth noting that AP exam takers represent a small minority of this non-college completer population — 1,399 of 20,795 at year 1 — which reflects the inherent tension in this variable: AP participation is strongly associated with academic orientation and postsecondary pursuit, making it somewhat unusual to observe in a non-completer population.
+
+At year 1, the dominant finding is that AP exam takers are far more likely to still be attending postsecondary (44.4% vs. 20.2%), a gap of 24 percentage points — the largest postsecondary attendance gap observed for any variable in this analysis. This reflects the strong selection of AP participants toward postsecondary continuation, even among those who ultimately do not complete a credential. AP participants show substantially lower sustained regional employment (10.8% vs. 19.9%), lower no MN employment record rates (13.4% vs. 21.9%), and lower non-sustained workforce participation (25.9% vs. 31.6%), all consistent with their concentration in postsecondary attendance at year 1.
+
+By year 5, postsecondary attendance remains notably elevated among AP participants (10.1% vs. 4.1%), again the largest such gap at year 5 of any variable examined. The most distinctive labor market difference is in sustained statewide employment, where AP participants show a rate of 21.5% compared to 14.6% among non-participants — a gap of nearly seven percentage points consistent with the academic pathway pattern. Sustained regional employment is substantially lower among AP participants (16.3% vs. 26.4%), while no MN employment record rates are nearly identical across groups (30.3% vs. 30.8%).
+
+At year 10, the association has weakened considerably (V=0.065), with the most notable remaining difference being in sustained statewide employment — 24.9% for AP participants versus 17.4% for non-participants — and sustained regional employment, which remains lower for AP participants (18.1% vs. 25.3%). No MN employment record rates are similar and slightly higher for AP participants (41.0% vs. 38.4%), consistent with a pattern of greater geographic dispersion or out-of-state employment among this academically oriented subgroup.
+
+Overall, AP exam participation shows a pattern nearly identical in character to ACT participation and PSEO participation: higher postsecondary attendance early, substantially lower regional employment across all time points, and persistently higher statewide employment among those who do enter the labor market. The year 10 attenuation of the overall effect size reflects convergence in no MN employment record rates and non-sustained workforce participation, while the regional versus statewide employment divide remains the most durable signature of AP participation among non-college completers.
+
+::: panel-tabset
+#### grad.year.1
+
+```{r}
+tab_xtab(var.row = data.1$grad.year.1,
+         var.col = data.1$ap.exam,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/ap-exam-1.html")
+
+
+```
+
+#### grad.year.5
+
+```{r}
+tab_xtab(var.row = data.5$grad.year.5,
+         var.col = data.5$ap.exam,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/ap-exam-5.html")
+
+
+```
+
+#### grad.year.10
+
+```{r}
+tab_xtab(var.row = data.10$grad.year.10,
+         var.col = data.10$ap.exam,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/ap-exam-10.html")
+
+
+```
+:::
+
+<br>
+
+### `MCA.M`
+
+MCA Mathematics scores show a statistically significant association with workforce participation outcomes at all three time points, with F-statistics declining over time (F=89.4 at year 1, F=36.0 at year 5, F=34.6 at year 10). Score differences across outcome categories are modest in magnitude — generally in the range of 0.1 to 0.4 scaled score units — but consistent in direction and statistically robust.
+
+At year 1, postsecondary attendees show the highest mean MCA Math scores, approximately 0.26 points above sustained regional employment and 0.34 points above non-sustained workforce participation. Among those already in the labor market, sustained statewide employment shows scores 0.13 points above sustained regional employment, while non-sustained workers and those with no MN employment record show scores roughly 0.08 to 0.11 points below sustained regional employment — though these two lower categories do not differ significantly from each other. The overall pattern at year 1 positions sustained regional employment as a middle category, with higher scores associated with postsecondary attendance and statewide employment, and lower scores associated with non-sustained work and labor market absence.
+
+By year 5, the gradient sharpens. Sustained statewide employment now shows scores 0.25 points above sustained regional employment, and postsecondary attendees remain the highest-scoring group (0.28 points above regional). A notable change from year 1 is that the no MN employment record group has shifted upward relative to sustained regional employment — now scoring 0.07 points above regional employment and significantly so — while non-sustained workers remain below regional (−0.04 points, not significant). Sustained statewide employment and postsecondary attendees are statistically indistinguishable from each other at year 5, both sitting well above all other categories.
+
+At year 10, the pattern consolidates further. Sustained statewide employment shows the highest mean scores, 0.29 points above sustained regional employment — the largest regional-to-statewide gap across all three time points. The no MN employment record group continues its upward trajectory relative to regional employment (0.18 points above, significant), now clearly distinguishable from both sustained regional and non-sustained workers. Sustained regional employment and non-sustained workforce participation remain statistically indistinguishable from each other at year 10, together forming the lowest-scoring labor market group. Sustained statewide employment and no MN employment record are also statistically distinguishable (−0.12 points), with statewide employment scoring higher.
+
+Overall, MCA Math scores produce a pattern consistent with the other academic achievement variables: higher scores are associated with out-of-region statewide employment and — increasingly over time — with absence from Minnesota employment records, while sustained regional employment and non-sustained workforce participation are associated with the lowest scores. The growing separation of the no MN employment record group from regional and non-sustained workers over time mirrors the ACT Composite Score findings and reinforces the interpretation that higher-achieving non-college completers are increasingly likely to be employed outside Minnesota by year 10.
+
+::: panel-tabset
+#### grad.year.1
+
+```{r}
+summary <- aov(MCA.M ~ grad.year.1, data = data.1)
+
+summary
+
+anova_df <- broom::tidy(summary)
+
+TukeyHSD(summary)
+
+tukey_df <- broom::tidy(TukeyHSD(summary))
+
+wb <- createWorkbook()
+addWorksheet(wb, "ANOVA")
+addWorksheet(wb, "TukeyHSD")
+writeData(wb, "ANOVA", anova_df)
+writeData(wb, "TukeyHSD", tukey_df)
+saveWorkbook(wb, "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/MCA-M-1.xlsx", overwrite = TRUE)
+
+```
+
+#### grad.year.5
+
+```{r}
+summary <- aov(MCA.M ~ grad.year.5, data = data.5)
+
+summary
+
+anova_df <- broom::tidy(summary)
+
+TukeyHSD(summary)
+
+tukey_df <- broom::tidy(TukeyHSD(summary))
+
+wb <- createWorkbook()
+addWorksheet(wb, "ANOVA")
+addWorksheet(wb, "TukeyHSD")
+writeData(wb, "ANOVA", anova_df)
+writeData(wb, "TukeyHSD", tukey_df)
+saveWorkbook(wb, "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/MCA-M-5.xlsx", overwrite = TRUE)
+
+```
+
+#### grad.year.10
+
+```{r}
+summary <- aov(MCA.M ~ grad.year.10, data = data.10)
+
+summary
+
+anova_df <- broom::tidy(summary)
+
+TukeyHSD(summary)
+
+tukey_df <- broom::tidy(TukeyHSD(summary))
+
+wb <- createWorkbook()
+addWorksheet(wb, "ANOVA")
+addWorksheet(wb, "TukeyHSD")
+writeData(wb, "ANOVA", anova_df)
+writeData(wb, "TukeyHSD", tukey_df)
+saveWorkbook(wb, "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/MCA-M-10.xlsx", overwrite = TRUE)
+
+```
+:::
+
+<br>
+
+### `MCA.R`
+
+MCA Reading scores show a statistically significant association with workforce participation outcomes at all three time points, with the strongest F-statistic of any continuous variable examined thus far at year 1 (F=144.3), declining over time (F=42.0 at year 5, F=28.0 at year 10). Score differences across outcome categories are modest in absolute terms — generally 0.1 to 0.5 scaled score units — but the gradient is clear, consistent, and statistically robust throughout.
+
+At year 1, postsecondary attendees show the highest mean MCA Reading scores by a wide margin — 0.40 points above sustained regional employment, 0.25 points above sustained statewide employment, and 0.37 to 0.48 points above non-sustained workers and those with no MN employment record. Among those already in the labor market, sustained statewide employment scores 0.15 points above sustained regional employment, while non-sustained workers are statistically indistinguishable from sustained regional workers. The no MN employment record group shows the lowest mean scores of any category, falling 0.08 points below sustained regional employment and 0.11 points below non-sustained workers — a notable contrast with MCA Math, where the no MN record group and non-sustained workers were similarly positioned at year 1.
+
+By year 5, the ordering of categories has shifted in a pattern now familiar from ACT and MCA Math. Sustained statewide employment scores 0.25 points above sustained regional employment, and postsecondary attendees remain the highest-scoring group (0.38 points above regional). The no MN employment record group has moved upward relative to sustained regional employment — now scoring 0.10 points above regional and statistically distinguishable — while non-sustained workers remain essentially identical to sustained regional employment (0.01 points, not significant). Sustained statewide employment and postsecondary attendees both sit well above non-sustained workers and regional employment, consistent with the academic pathway pattern.
+
+At year 10, the structure simplifies into a clear three-tier pattern. Sustained statewide employment shows the highest mean scores (0.25 points above regional), the no MN employment record group is the next highest (0.21 points above regional), and sustained regional and non-sustained workforce participation are statistically indistinguishable from each other — forming the lowest-scoring tier. The no MN employment record and sustained statewide groups are also statistically indistinguishable from each other at year 10 (−0.04 points), together constituting a distinct upper tier of MCA Reading performance among non-college completers.
+
+The MCA Reading pattern closely mirrors MCA Math across all three time points, with the shared signature that regional employment and non-sustained workforce participation occupy the lowest achievement tier, while statewide employment and no MN employment record increasingly converge into a higher- scoring group over time. The F-statistics for MCA Reading are uniformly higher than for MCA Math at every time point, suggesting that reading achievement carries somewhat stronger differentiation across workforce participation categories in this population — consistent with its role as the primary academic achievement indicator retained in the full population multivariate models.
+
+::: panel-tabset
+#### grad.year.1
+
+```{r}
+summary <- aov(MCA.R ~ grad.year.1, data = data.1)
+
+summary
+
+anova_df <- broom::tidy(summary)
+
+TukeyHSD(summary)
+
+tukey_df <- broom::tidy(TukeyHSD(summary))
+
+wb <- createWorkbook()
+addWorksheet(wb, "ANOVA")
+addWorksheet(wb, "TukeyHSD")
+writeData(wb, "ANOVA", anova_df)
+writeData(wb, "TukeyHSD", tukey_df)
+saveWorkbook(wb, "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/MCA-R-1.xlsx", overwrite = TRUE)
+
+```
+
+#### grad.year.5
+
+```{r}
+summary <- aov(MCA.R ~ grad.year.5, data = data.5)
+
+summary
+
+anova_df <- broom::tidy(summary)
+
+TukeyHSD(summary)
+
+tukey_df <- broom::tidy(TukeyHSD(summary))
+
+wb <- createWorkbook()
+addWorksheet(wb, "ANOVA")
+addWorksheet(wb, "TukeyHSD")
+writeData(wb, "ANOVA", anova_df)
+writeData(wb, "TukeyHSD", tukey_df)
+saveWorkbook(wb, "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/MCA-R-5.xlsx", overwrite = TRUE)
+
+```
+
+#### grad.year.10
+
+```{r}
+summary <- aov(MCA.R ~ grad.year.10, data = data.10)
+
+summary
+
+anova_df <- broom::tidy(summary)
+
+TukeyHSD(summary)
+
+tukey_df <- broom::tidy(TukeyHSD(summary))
+
+wb <- createWorkbook()
+addWorksheet(wb, "ANOVA")
+addWorksheet(wb, "TukeyHSD")
+writeData(wb, "ANOVA", anova_df)
+writeData(wb, "TukeyHSD", tukey_df)
+saveWorkbook(wb, "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/MCA-R-10.xlsx", overwrite = TRUE)
+
+```
+:::
+
+<br>
+
+### `MCA.S`
+
+MCA Science scores show a statistically significant association with workforce participation outcomes at all three time points, with F-statistics declining over time (F=84.4 at year 1, F=38.1 at year 5, F=25.1 at year 10). The pattern of differences across outcome categories is strikingly consistent with MCA Reading and MCA Math, reinforcing the broader finding that academic achievement across subjects produces a common gradient in workforce participation outcomes among non-college completers.
+
+At year 1, postsecondary attendees show the highest mean science scores, 0.30 points above sustained regional employment and 0.13 points above sustained statewide employment. Among those in the labor market, sustained statewide employment scores 0.17 points above sustained regional employment. Non-sustained workers and those with no MN employment record are statistically indistinguishable from sustained regional employment at year 1 — a pattern similar to MCA Math and consistent with the early-stage sorting that has not yet fully differentiated these groups by academic achievement.
+
+By year 5, the structure sharpens in a now-familiar way
+
+::: panel-tabset
+#### grad.year.1
+
+```{r}
+summary <- aov(MCA.S ~ grad.year.1, data = data.1)
+
+summary
+
+anova_df <- broom::tidy(summary)
+
+TukeyHSD(summary)
+
+tukey_df <- broom::tidy(TukeyHSD(summary))
+
+wb <- createWorkbook()
+addWorksheet(wb, "ANOVA")
+addWorksheet(wb, "TukeyHSD")
+writeData(wb, "ANOVA", anova_df)
+writeData(wb, "TukeyHSD", tukey_df)
+saveWorkbook(wb, "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/MCA-S-1.xlsx", overwrite = TRUE)
+```
+
+#### grad.year.5
+
+```{r}
+summary <- aov(MCA.S ~ grad.year.5, data = data.5)
+
+summary
+
+anova_df <- broom::tidy(summary)
+
+TukeyHSD(summary)
+
+tukey_df <- broom::tidy(TukeyHSD(summary))
+
+wb <- createWorkbook()
+addWorksheet(wb, "ANOVA")
+addWorksheet(wb, "TukeyHSD")
+writeData(wb, "ANOVA", anova_df)
+writeData(wb, "TukeyHSD", tukey_df)
+saveWorkbook(wb, "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/MCA-S-5.xlsx", overwrite = TRUE)
+```
+
+#### grad.year.10
+
+```{r}
+summary <- aov(MCA.S ~ grad.year.10, data = data.10)
+
+summary
+
+anova_df <- broom::tidy(summary)
+
+TukeyHSD(summary)
+
+tukey_df <- broom::tidy(TukeyHSD(summary))
+
+wb <- createWorkbook()
+addWorksheet(wb, "ANOVA")
+addWorksheet(wb, "TukeyHSD")
+writeData(wb, "ANOVA", anova_df)
+writeData(wb, "TukeyHSD", tukey_df)
+saveWorkbook(wb, "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/MCA-S-10.xlsx", overwrite = TRUE)
+```
+:::
+
+<br>
+
+### `cte.achievement`
+
+CTE achievement shows a statistically significant association with workforce participation outcomes at all three time points, with Cramer's V relatively stable and modest across the observation windows (V=0.094 at year 1, V=0.106 at year 5, V=0.115 at year 10). Unlike the academic achievement variables examined previously, CTE achievement produces a pattern oriented toward regional rather than statewide employment, consistent with the CTE pathway identified in the full population analysis.
+
+At year 1, the three CTE categories show a clear gradient in sustained regional employment: CTE concentrators or completers show the highest rate (22.0%), followed by CTE participants (18.3%), and those with no CTE engagement show the lowest rate (13.5%). This monotonic relationship — stronger CTE engagement associated with higher regional employment — is the defining feature of this variable and stands in direct contrast to the pattern observed for academic achievement variables. The no CTE group shows the highest no MN employment record rate (30.5%), more than 11 percentage points above CTE concentrators (18.9%) and participants (19.1%). Postsecondary attendance rates are similar across all three CTE categories at year 1 (21.5%, 23.1%, 21.0%), indicating that CTE engagement does not meaningfully differentiate early postsecondary continuation in this non-completer population.
+
+By year 5, the regional employment gradient has sharpened considerably. CTE concentrators show a sustained regional employment rate of 30.0% — nearly 12.5 percentage points above the no CTE group (17.5%) and 5 points above CTE participants (25.0%). The no CTE group continues to show by far the highest no MN employment record rate (41.9%), roughly 15 points above CTE concentrators (26.6%) and 13 points above CTE participants (29.1%). Sustained statewide employment rates are similar across CTE categories (15.2%, 15.8%, 13.9%), indicating that CTE engagement does not meaningfully differentiate out-of-region labor market mobility — its primary signature is regional attachment, not broader geographic reach.
+
+At year 10, the pattern is most pronounced. CTE concentrators show a sustained regional employment rate of 29.4%, compared to 23.8% for participants and 14.4% for the no CTE group — a gap of 15 percentage points between the highest and lowest CTE categories that represents the largest category-level difference for any variable examined in this group. The no CTE group shows an extraordinarily high no MN employment record rate of 51.5%, compared to 38.1% for CTE participants and 33.6% for CTE concentrators. Statewide employment rates remain similar across categories (18.2%, 18.6%, 16.5%), again confirming that CTE achievement is specifically associated with regional rather than statewide employment outcomes.
+
+Overall, CTE achievement is among the stronger and most interpretable predictors of workforce participation in this population. Its signature is the mirror image of the academic achievement variables: stronger CTE engagement is associated with higher sustained regional employment and lower rates of MN employment record absence, while the no CTE group shows the most adverse profile on both dimensions across all three time points. The effect size grows modestly but consistently over time, suggesting that the regional labor market advantage associated with CTE engagement becomes more entrenched as graduates settle into stable employment patterns.
+
+::: panel-tabset
+#### grad.year.1
+
+```{r}
+tab_xtab(var.row = data.1$grad.year.1,
+         var.col = data.1$cte.achievement,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/cte-achievement-1.html")
+```
+
+#### grad.year.5
+
+```{r}
+tab_xtab(var.row = data.5$grad.year.5,
+         var.col = data.5$cte.achievement,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/cte-achievement-5.html")
+
+```
+
+#### grad.year.10
+
+```{r}
+tab_xtab(var.row = data.10$grad.year.10,
+         var.col = data.10$cte.achievement,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/cte-achievement-10.html")
+
+```
+:::
+
+<br>
+
+### `total.cte.courses.taken`
+
+Total CTE courses taken shows a statistically significant association with workforce participation outcomes at all three time points, with among the highest F-statistics of any variable in the high school accomplishments group (F=146.8 at year 1, F=101.3 at year 5, F=62.1 at year 10). Unlike Cramer's V, F-statistics are not bounded and reflect both the magnitude of mean differences and sample size, so these values indicate a strong and consistent signal. The direction of the effect is the opposite of the academic achievement variables: higher CTE course-taking is consistently associated with sustained regional employment, while lower CTE course-taking is associated with absence from Minnesota employment records.
+
+At year 1, sustained regional employment is associated with the highest mean number of CTE courses, with all other categories showing meaningfully fewer courses. Non-sustained workers show 1.03 fewer courses than sustained regional workers, postsecondary attendees show 1.22 fewer, and the no MN employment record group shows the fewest — 1.92 fewer courses than sustained regional workers, by far the largest gap at year 1. Sustained statewide employment is statistically indistinguishable from sustained regional employment (−0.13 courses, not significant), the only category that matches regional workers in CTE course-taking. This early pattern establishes CTE course volume as a strong differentiator between regional labor market engagement and non-engagement, with the no MN employment record group showing particularly low CTE course-taking.
+
+By year 5, the structure is largely preserved but with some shifts. Sustained regional employment continues to show the highest mean CTE courses, with all other categories significantly below. Sustained statewide employment has now separated from sustained regional workers (−0.69 courses, significant), confirming that out-of-region employment is associated with fewer CTE courses even relative to year 1. Non-sustained workers show 0.82 fewer courses than regional workers, and the no MN employment record group remains the furthest below (−1.60 courses). Postsecondary attendees and the no MN record group are statistically indistinguishable from each other at year 5, both showing very low CTE course volumes.
+
+At year 10, the pattern consolidates into a clear ordering. Sustained regional employment maintains the highest mean CTE courses, with sustained statewide employment (−0.90 courses) and non-sustained workforce participation (−0.86 courses) both significantly below and statistically indistinguishable from each other — forming a middle tier. The no MN employment record group shows the lowest CTE course-taking at year 10 (−1.40 courses below regional), significantly below all other categories including non-sustained workers (−0.55 courses below non-sustained). This creates a clear three- tier structure at year 10 that mirrors the CTE achievement categorical findings: regional employment at the top, statewide employment and non-sustained workers in the middle, and the no MN employment record group at the bottom.
+
+Overall, total CTE courses taken produces the strongest F-statistics of any variable in the high school accomplishments group and shows the most consistent and durable advantage for sustained regional employment across all three time points. Its pattern directly complements CTE achievement: both variables point to CTE engagement as a robust and growing predictor of regional labor market attachment among non-college completers, with the no MN employment record group consistently showing the lowest CTE engagement at every observation window.
+
+::: panel-tabset
+#### grad.year.1
+
+```{r}
+summary <- aov(total.cte.courses.taken ~ grad.year.1, data = data.1)
+
+summary
+
+anova_df <- broom::tidy(summary)
+
+TukeyHSD(summary)
+
+tukey_df <- broom::tidy(TukeyHSD(summary))
+
+wb <- createWorkbook()
+addWorksheet(wb, "ANOVA")
+addWorksheet(wb, "TukeyHSD")
+writeData(wb, "ANOVA", anova_df)
+writeData(wb, "TukeyHSD", tukey_df)
+saveWorkbook(wb, "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/total-cte-courses-taken-1.xlsx", overwrite = TRUE)
+
+```
+
+#### grad.year.5
+
+```{r}
+summary <- aov(total.cte.courses.taken ~ grad.year.5, data = data.5)
+
+summary
+
+anova_df <- broom::tidy(summary)
+
+TukeyHSD(summary)
+
+tukey_df <- broom::tidy(TukeyHSD(summary))
+
+wb <- createWorkbook()
+addWorksheet(wb, "ANOVA")
+addWorksheet(wb, "TukeyHSD")
+writeData(wb, "ANOVA", anova_df)
+writeData(wb, "TukeyHSD", tukey_df)
+saveWorkbook(wb, "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/total-cte-courses-taken-5.xlsx", overwrite = TRUE)
+
+```
+
+#### grad.year.10
+
+```{r}
+summary <- aov(total.cte.courses.taken ~ grad.year.10, data = data.10)
+
+summary
+
+anova_df <- broom::tidy(summary)
+
+TukeyHSD(summary)
+
+tukey_df <- broom::tidy(TukeyHSD(summary))
+
+wb <- createWorkbook()
+addWorksheet(wb, "ANOVA")
+addWorksheet(wb, "TukeyHSD")
+writeData(wb, "ANOVA", anova_df)
+writeData(wb, "TukeyHSD", tukey_df)
+saveWorkbook(wb, "Data/Claude/analysis_non_post_secondary_grads_ct/High school accomplishments/total-cte-courses-taken-10.xlsx", overwrite = TRUE)
+```
+:::
+
+<br>
+
+## Post-secondary
+
+### Summary
+
+Postsecondary attendance shows by far the strongest bivariate association with workforce participation outcomes of any variable examined in this analysis, with a Cramer's V of 0.640 at year 1 — well into strong effect territory and more than double the next strongest variable (ACT participation at V=0.302). The association declines substantially over time (V=0.275 at year 5, V=0.124 at year 10) as the structural constraint driving the year 1 relationship — that postsecondary attendees are by definition in the attending ps category — gradually dissolves. The sample sizes are fixed across all three time points (12,102 never attended; 8,693 attended but did not complete), reflecting that attended.ps is a fixed characteristic rather than a time-varying one.
+
+The year 1 association is largely mechanical in nature. Individuals who attended postsecondary account for the entire attending ps category (52.3% of postsecondary attendees are still attending at year 1), while those who never attended postsecondary have zero representation there by definition. Among those already in the labor market at year 1, postsecondary attendees show notably lower sustained regional employment (15.9% vs. 21.8%), lower sustained statewide employment (5.3% vs. 7.0%), but dramatically lower no MN employment record rates (7.1% vs. 31.6%) and lower non-sustained workforce participation (19.5% vs. 39.6%). This suggests that postsecondary attendees who have exited to the labor market by year 1 are more engaged in formal Minnesota employment than non-attendees, even if not yet at sustained thresholds.
+
+The year 5 table uses a different category structure than years 1 and 10, appearing to reflect an intermediate classification scheme. Reading the available categories, postsecondary attendees show higher meaningful regional employment (20.6% vs. 17.8%) and substantially higher meaningful statewide employment (14.4% vs. 8.8%) compared to non-attendees. Non-attendees show higher rates in the top combined outcome category (31.9% vs. 18.0%) and lower no MN employment record rates (24.8% vs. 19.9%), though the non-standard category labels at year 5 limit direct comparability with years 1 and 10.
+
+At year 10, the association has weakened considerably (V=0.124) but remains meaningful. Postsecondary attendees show higher sustained regional employment (12.0% vs. 9.4%) and notably higher sustained statewide employment (10.1% vs. 5.8%), consistent with the academic pathway pattern where postsecondary exposure — even without completion — is associated with greater out-of-region labor market mobility. Non-attendees show lower no MN employment record rates (15.2% vs. 18.0%), suggesting they are somewhat more likely to remain in Minnesota, though in less stable employment. The largest category at year 10 for both groups is the combined outcome category, with non-attendees showing a substantially higher rate (62.4% vs. 50.8%), reflecting their higher overall Minnesota labor market engagement over the decade.
+
+Overall, postsecondary attendance is the strongest single predictor of workforce participation outcomes at year 1 by a wide margin, though much of that association is structural rather than substantive. Its most durable and interpretable finding — consistent with the academic pathway — is that attending postsecondary without completing is associated with higher sustained statewide employment and lower regional employment relative to never attending, a pattern that persists meaningfully through year 10 and mirrors the trajectory observed for ACT participation, AP exams, and PSEO participation among this non-completer population.
+
+<br>
+
+### `attended.ps`
+
+::: panel-tabset
+#### grad.year.1
+
+```{r}
+tab_xtab(var.row = data.1$grad.year.1,
+         var.col = data.1$attended.ps,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/Post secondary/attended-ps-1.html")
+```
+
+#### grad.year.5
+
+```{r}
+tab_xtab(var.row = data.1$grad.year.5,
+         var.col = data.1$attended.ps,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/Post secondary/attended-ps-5.html")
+```
+
+#### grad.year.10
+
+```{r}
+tab_xtab(var.row = data.1$grad.year.10,
+         var.col = data.1$attended.ps,
+         show.exp = TRUE,
+         show.col.prc = TRUE,
+         file = "Data/Claude/analysis_non_post_secondary_grads_ct/Post secondary/attended-ps-10.html")
+```
+:::
+
+<br>
+
+# Summary: Bivariate Analysis of Workforce Participation Outcomes Among Non-College Completers
+
+The bivariate analysis examined associations between 21 independent variables and workforce participation outcomes at years 1, 5, and 10 post-graduation among Southwest Minnesota high school graduates who did not complete a postsecondary credential. Variables are ranked separately for categorical predictors (Cramer's V) and continuous predictors (F-statistic from ANOVA) given the absence of a common effect size metric across the two approaches. Rankings reflect general patterns across all three time points, with particular attention to consistency and magnitude of effect.
+
+## **Categorical Predictors Ranked by Effect Size (Cramer's V)**
+
+*1. Postsecondary Attendance* (V=0.640, 0.275, 0.124) is the strongest categorical predictor by a substantial margin, though the year 1 association is largely structural — driven by the mechanical relationship between attending postsecondary and the attending ps outcome category. Its most substantive and durable finding is that postsecondary attendees show persistently higher sustained statewide employment and lower regional employment relative to non-attendees across all three time points, consistent with the academic pathway.
+
+*2. ACT Participation* (V=0.302, 0.155, 0.108) is the strongest high school accomplishment predictor and the strongest variable with a clearly substantive rather than structural association at year 1. Its signature — higher postsecondary attendance, lower regional employment, and substantially higher statewide employment — is the clearest expression of the academic pathway among non-college completers and remains the second strongest categorical predictor at every time point.
+
+*3. AP Exam Participation* (V=0.149, 0.101, 0.065) ranks third, producing a pattern nearly identical to ACT participation in character — high postsecondary attendance early, persistently lower regional and higher statewide employment — but with smaller effect sizes throughout and greater attenuation by year 10.
+
+*4. PSEO Participation* (V=0.186, 0.072, 0.082) ranks fourth overall, with a strong year 1 association driven by an 18-percentage-point postsecondary attendance gap that dissipates rapidly. Its residual finding — a persistent tendency toward statewide rather than regional employment among PSEO participants who did not complete — mirrors the broader academic pathway pattern but at modest effect sizes at years 5 and 10. Note that this variable is restricted to 2011 cohorts and later.
+
+*5. Special Education Status* (V=0.171, 0.107, 0.093) is the strongest demographic predictor, distinguished from other demographic variables by its persistent association with employment instability and reduced statewide labor market mobility across all three time points. Its primary signature is not reduced regional employment but rather elevated non-sustained workforce participation and lower statewide employment that endure through year 10.
+
+*6. English Learner Status* (V=0.140, 0.074, 0.070) ranks sixth, with a strong year 1 association reflecting lower postsecondary attendance and a persistent and growing absence from Minnesota employment records that is its most distinctive feature — differentiating it from other demographic variables and suggesting out-of-state employment, informal work, or geographic departure as plausible explanations.
+
+*7. Economic Status* (V=0.137, 0.083, 0.091) ranks seventh, with a strong year 1 association again driven largely by differential postsecondary attendance. Its most durable finding is modestly higher sustained statewide employment among non-disadvantaged graduates and greater employment instability among disadvantaged graduates, though the association weakens considerably from year 1 to year 5.
+
+*8. CTE Achievement* (V=0.094, 0.106, 0.115) is notable as the only accomplishments variable whose effect size grows at every time point, and the strongest categorical predictor oriented toward regional rather than statewide employment. CTE concentrators and completers show progressively higher regional employment and lower no MN employment record rates relative to the no CTE group, with a 15-percentage-point regional employment gap emerging by year 10.
+
+*9. Non-English Home Language* (V=0.114, 0.068, 0.061) ranks ninth, closely mirroring the English learner pattern in both direction and character but with consistently smaller effect sizes, suggesting that English learner status captures the relevant variation more precisely. Its independent contribution will require evaluation in multivariate models.
+
+*10. EDR* (V=0.093, 0.103, 0.107) is the strongest high school characteristics predictor, with a growing association driven primarily by a widening gap in sustained statewide employment between EDR 6E (Southwest Central) and the other two EDRs — a geographic labor market differentiation that is largely invisible in the regional employment category, which is similar across all three EDRs.
+
+*11. Gender* (V=0.058, 0.087, 0.107) ranks eleventh and is distinctive as the only variable whose effect size increases consistently across all three time points. Its growing association reflects a widening gap in sustained regional employment favoring males and an expanding share of females carrying no MN employment record by year 10, suggesting diverging long-term labor market trajectories by gender.
+
+*12. Race/Ethnicity* (V=0.069, 0.043, 0.054) shows the weakest and least consistent effect sizes of the categorical variables, with American Indian graduates showing a persistently adverse profile and Asian/Pacific Islander graduates displaying a distinctive pattern of high MN record absence alongside relatively high statewide employment among those who remain. Overall effect sizes are small at all three time points.
+
+*13. Community Demographic Description* (V=0.054, 0.078, 0.094) shows statistically significant but practically weak associations, with the most interpretable pattern being a growing statewide employment advantage for urban/town/rural mix graduates and higher MN record absence among entirely rural graduates. Effect sizes remain too small to add meaningful explanatory value beyond other variables.
+
+## **Continuous Predictors Ranked by Effect Size (F-statistic)**
+
+*1. Total CTE Courses Taken* (F=146.8, 101.3, 62.1) produces the highest F-statistics of any continuous variable at all three time points. Its pattern is the mirror image of the academic achievement variables: higher CTE course volume is strongly and consistently associated with sustained regional employment, while the no MN employment record group shows persistently the lowest CTE course-taking at every observation window. The three-tier structure at year 10 — regional employment highest, statewide and non-sustained in the middle, no MN record lowest — is among the clearest patterns in the entire analysis.
+
+*2. MCA Reading Score* (F=144.3, 42.0, 28.0) is the strongest academic achievement measure, consistent with its role as the primary achievement indicator in the full population multivariate models. Its gradient is clear and durable across all three time points: higher scores are associated with statewide employment and — increasingly over time — no MN employment record, while regional employment and non-sustained work form the lowest-scoring tier. F-statistics are the highest of the three MCA measures at years 1 and 5.
+
+*3. ACT Composite Score* (F=114.2, 44.6, 18.3) ranks third among continuous predictors, producing a pattern consistent with MCA Reading: higher scores associated with postsecondary attendance early and statewide employment later, with regional employment consistently at the lowest-scoring tier. The score gap between sustained statewide and sustained regional employment grows from 0.79 points at year 1 to 1.43 points at year 10, indicating increasing score-based stratification across the observation windows. Note this variable is restricted to ACT takers only.
+
+*4. MCA Math Score* (F=89.4, 36.0, 34.6) closely mirrors MCA Reading in pattern but with somewhat lower F-statistics at years 1 and 5. Its year 10 F-statistic (34.6) exceeds MCA Reading (28.0), suggesting math achievement carries slightly stronger differentiation at the later time point. The three-tier consolidation at year 10 — statewide and no MN record as a higher-achieving group, regional and non-sustained as a lower-achieving group — replicates the MCA Reading structure.
+
+*5. MCA Science Score* (F=84.4, 38.1, 25.1) replicates the MCA Reading and Math patterns with high fidelity across all three time points, including the three-tier consolidation at year 10. As in the full population analysis, its voluntary and self-selected nature limits its utility in multivariate models, but its bivariate associations confirm the broader academic achievement gradient and are consistent with retaining MCA Reading as the primary academic achievement indicator.
+
+*6. Average County Unemployment Rate* (F=31.3, 44.5, 54.7) is notable as the only continuous variable whose F-statistic increases substantially over time, reflecting a growing labor market geography effect. Its most consistent finding is that graduates achieving sustained statewide employment disproportionately originate from higher-unemployment counties — consistent with a labor market push dynamic — while the no MN employment record group shows unemployment rate profiles indistinguishable from sustained regional workers, suggesting out-of-state departure rather than intra-state mobility.
+
+*7. Average County Wages as Percent of State Average* (F=35.3, 24.0, 26.1) is statistically significant at all three time points but shows very small absolute differences — all contrasts within one to two percentage points of the state average. Its only durable finding mirrors the unemployment rate variable: graduates in sustained statewide employment consistently originate from lower-wage counties. The negligible absolute magnitude of differences limits its practical significance and supports its exclusion from multivariate models.
+
+## **Cross-Cutting Observations**
+
+Several themes emerge from the full set of bivariate findings. First, the two-pathway structure identified in the full population analysis is fully present among non-college completers: academic indicators (ACT, AP, PSEO, MCA scores, postsecondary attendance) consistently predict statewide labor market mobility, while CTE indicators (CTE achievement, total CTE courses) predict regional attachment — regardless of whether a credential was earned. Second, the no MN employment record category behaves distinctively across the accomplishment variables, increasingly resembling the statewide employment group on academic achievement measures by years 5 and 10, suggesting that a meaningful share of higher-achieving non-completers have left Minnesota rather than failing to engage with its labor market. Third, demographic variables show weaker associations than accomplishment variables across the board, indicating that what students did in high school is more predictive of workforce participation trajectories than who they are. Finally, several variables — community demographic description, county wages, non-English home language — show statistically significant but practically weak associations unlikely to add explanatory value beyond stronger correlated predictors in multivariate models, consistent with decisions made in the full population analysis.
+
+<br>
+
+# What the Data Tell Us: Workforce Participation Among Non-College Completers
+
+For Southwest Minnesota high school graduates who never earned a postsecondary credential, the years following graduation tell two very different stories depending on the path they took through high school.
+
+## **The students who were headed somewhere else**
+
+Some graduates who ultimately did not complete a postsecondary credential were nonetheless oriented toward college from the start. They took the ACT, participated in AP courses and PSEO, earned higher MCA scores, and went on to attempt postsecondary education even if they didn't finish it. What happened to them in the labor market looks a lot like what happened to students who did complete degrees — just a dimmer version of the same pattern. They were more likely to leave Southwest Minnesota for employment elsewhere in the state, and by year 10, a striking share of them had simply disappeared from Minnesota employment records entirely. They weren't failing to find work. The most likely explanation is that they left the state.
+
+This group illustrates something important: academic orientation shapes where people end up even when formal credentials don't follow. The habits of mind, the networks, the postsecondary experience itself — even an incomplete one — appear to pull people toward broader labor markets and away from the region.
+
+## **The students who were built for this place**
+
+The other story belongs to graduates with deep CTE engagement. Higher numbers of CTE courses taken, CTE concentrator or completer status — these are the students who showed up in regional employment at year 1 and stayed there. By year 10, CTE concentrators were nearly twice as likely to be in sustained regional employment as graduates with no CTE engagement at all. This isn't a small finding. It suggests that CTE programs are doing exactly what they are supposed to do for students who engage with them seriously: connecting young people to the regional economy and equipping them to stay.
+
+## **The students who fell through the cracks**
+
+The most troubling pattern in the data belongs to graduates with no CTE engagement and no academic orientation — the students who neither pursued a college track nor developed occupational skills through CTE. By year 10, more than half of graduates with no CTE participation carried no Minnesota employment record at all. This group was already the most likely to have no MN employment record at year 1, and that gap only widened over time. Whether they left the state, work in informal economies, or have simply disengaged from the formal labor market, the data cannot say — but their persistent absence from employment records across a decade is the most concerning finding in the entire analysis.
+
+## **The role of identity and circumstance**
+
+Demographic characteristics — race, gender, economic status, special education status, English learner status — do matter, but they matter less than what students did in high school. Special education students show persistent employment instability. English learners and graduates from non-English speaking homes show elevated absence from Minnesota employment records that grows over time, possibly reflecting employment in sectors that don't generate wage records or communities that maintain strong ties outside Minnesota. Males are more likely to be in sustained regional employment by year 10; females are increasingly likely to carry no MN employment record. These patterns deserve attention, but they operate in the background of the stronger story told by high school experiences.
+
+## **The geography of opportunity**
+
+Where a student went to high school also matters, though modestly. Graduates from EDR 6E — the Southwest Central region anchored by Marshall — show substantially higher rates of employment outside the region compared to graduates from the Upper Minnesota Valley or Southwest EDRs. Graduates from higher- unemployment counties are more likely to leave the region for work elsewhere in the state, consistent with what we would expect when local job markets are tight. But sustained regional employment rates are remarkably similar across the three EDRs, suggesting that the regional economy absorbs similar shares of non-completers regardless of sub-region — it's the path out of the region that differs.
+
+## **The bottom line**
+
+A decade after high school graduation, the non-college completer population has sorted into roughly three groups: those doing steady work in the region, those doing steady work elsewhere, and a large and growing group with no formal Minnesota employment footprint. CTE engagement is the strongest predictor of being in the first group. Academic orientation — even without a credential — predicts the second. And the absence of either, combined with demographic disadvantage, is the clearest signal of the third.
+
+The regional economy depends heavily on workers who choose to stay. This analysis suggests that CTE programs are the most powerful mechanism available for cultivating that attachment among students who will not complete four-year degrees. At the same time, the growing share of non-completers absent from Minnesota employment records by year 10 — many of them higher-achieving graduates who attended postsecondary without finishing — points to an ongoing and unresolved challenge: how to keep talent in a region when the pathways that develop it often point toward somewhere else.
