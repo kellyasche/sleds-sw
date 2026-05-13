@@ -188,36 +188,19 @@ ul.task-list li input[type="checkbox"] {
  <span class="dropdown-text">Non-college graduates</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="./analysis_multivariate_confirmation_non_college_grads.qmd">
+    <a class="dropdown-item" href="./analysis_multivariate_confirmation_non_college_grads.html">
  <span class="dropdown-text">Multivariate Confirmation Analysis on non-college grads - Logistic Regression</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="./analysis_non_college_deeper.qmd">
+    <a class="dropdown-item" href="./analysis_non_college_deeper.html">
  <span class="dropdown-text">Further analysis on non-college grads</span></a>
   </li>  
     </ul>
   </li>
-  <li class="nav-item dropdown ">
-    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-one-page-summaries-of-pathways" role="link" data-bs-toggle="dropdown" aria-expanded="false">
-      <i class="bi bi-fa-gear" role="img">
-</i> 
- <span class="menu-text">One-page summaries of pathways</span>
-    </a>
-    <ul class="dropdown-menu" aria-labelledby="nav-menu-one-page-summaries-of-pathways">    
-        <li>
-    <a class="dropdown-item" href="./pathway_anchored.qmd">
- <span class="dropdown-text">Pathway - Anchored</span></a>
+  <li class="nav-item">
+    <a class="nav-link" href="./summary_pathways.html"> 
+<span class="menu-text">Summary of the three pathways</span></a>
   </li>  
-        <li>
-    <a class="dropdown-item" href="./pathway_mobility.qmd">
- <span class="dropdown-text">Pathway - Mobility</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./pathway_unanchored.qmd">
- <span class="dropdown-text">Pathway - Unanchared / At-Risk</span></a>
-  </li>  
-    </ul>
-  </li>
 </ul>
           </div> <!-- /navcollapse -->
             <div class="quarto-navbar-tools">
@@ -234,7 +217,13 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#section" id="toc-section" class="nav-link active" data-scroll-target="#section"></a></li>
+  <li><a href="#summary" id="toc-summary" class="nav-link active" data-scroll-target="#summary">Summary</a>
+  <ul class="collapse">
+  <li><a href="#pathway-1-college-completers" id="toc-pathway-1-college-completers" class="nav-link" data-scroll-target="#pathway-1-college-completers"><strong>Pathway 1: College Completers</strong></a></li>
+  <li><a href="#pathway-2-workforce-first" id="toc-pathway-2-workforce-first" class="nav-link" data-scroll-target="#pathway-2-workforce-first"><strong>Pathway 2: Workforce First</strong></a></li>
+  <li><a href="#pathway-3-disconnected" id="toc-pathway-3-disconnected" class="nav-link" data-scroll-target="#pathway-3-disconnected"><strong>Pathway 3: Disconnected</strong></a></li>
+  <li><a href="#the-relationship-between-pathways" id="toc-the-relationship-between-pathways" class="nav-link" data-scroll-target="#the-relationship-between-pathways"><strong>The Relationship Between Pathways</strong></a></li>
+  </ul></li>
   </ul>
 </nav>
     </div>
@@ -260,10 +249,44 @@ ul.task-list li input[type="checkbox"] {
 </header>
 
 
-<section id="section" class="level1">
-<h1></h1>
+<section id="summary" class="level1">
+<h1>Summary</h1>
+<p>After extensive analysis examining relationships between individual and independent variables, and workforce participation outcomes, the following pathways are clear.</p>
+<p><br></p>
+<section id="pathway-1-college-completers" class="level2">
+<h2 class="anchored" data-anchor-id="pathway-1-college-completers"><strong>Pathway 1: College Completers</strong></h2>
+<p>This pathway is defined by postsecondary credential attainment, and the most important variable within it is not whether someone completes college but <em>where</em> they complete it. The ps.pathway variable in the full population multivariate analysis made this unmistakably clear — graduating from a regional institution, whether with a sub-baccalaureate or bachelor’s degree, is the single strongest postsecondary predictor of regional workforce retention (OR≈2.0 for both regional graduation categories). Graduating from a non-regional Minnesota institution or outside Minnesota is associated with dramatically lower regional employment odds.</p>
+<p>The variables that predict <em>whether</em> someone reaches this pathway are well established — female gender, higher academic achievement (ACT, MCA scores, AP participation), non-disadvantaged economic status, and non-special education status all increase postsecondary graduation likelihood substantially. Economic status and special education status are the two largest barriers, each producing odds of postsecondary graduation below 0.40 in the full population baseline model.</p>
+<p>The key tension within this pathway for regional workforce policy is that the variables that most reliably produce college completers — high academic achievement, ACT participation, AP exposure — are the same variables most associated with non-regional graduation and non-regional employment. The pipeline that produces credentials exports them.</p>
+</section>
+<section id="pathway-2-workforce-first" class="level2">
+<h2 class="anchored" data-anchor-id="pathway-2-workforce-first"><strong>Pathway 2: Workforce First</strong></h2>
+<p>This is the CTE pathway, and it is the most analytically clean finding in the entire project. Among non-college completers, total CTE courses taken shows an odds ratio of approximately 1.055 for sustained regional employment at year 1, year 5, <em>and</em> year 10 — a stability that no other variable in the analysis approaches. CTE achievement level produces similarly consistent associations, with concentrators showing nearly double the regional employment rates of no-CTE graduates by year 5.</p>
+<p>The key variables within this pathway are:</p>
+<ul>
+<li>Total CTE courses taken is the dominant predictor — dose-dependent, durable, and independent of every other variable in the model. More courses means more regional employment, period, across a decade of observation.</li>
+<li>CTE achievement level adds categorical confirmation of the dose-response pattern — concentrators outperform participants who outperform no-CTE graduates at every time point.</li>
+<li>Gender operates within this pathway in an important way — males are substantially more likely to achieve sustained regional employment through the workforce-first route, and the gender gap widens over time. Whether this reflects differential access to certain CTE program areas, differential regional employer preferences, or differential geographic mobility among female non-completers, the data cannot fully resolve.</li>
+<li>EDR and local labor market conditions matter within this pathway more than elsewhere — graduates from higher-unemployment counties show lower regional employment odds at year 1 and year 10, suggesting that the workforce-first pathway is more accessible in some subregions than others, and that CTE engagement cannot fully overcome severe local labor market constraints.</li>
+<li>Special education status deserves specific attention within this pathway. Special education graduates are more likely to be CTE-engaged and less academically oriented, which initially appears to favor regional employment. But once CTE engagement and academic achievement are controlled, special education graduates show lower regional employment odds — suggesting barriers to sustained regional employment that CTE engagement alone does not fully overcome.</li>
+</ul>
+</section>
+<section id="pathway-3-disconnected" class="level2">
+<h2 class="anchored" data-anchor-id="pathway-3-disconnected"><strong>Pathway 3: Disconnected</strong></h2>
+<p>This is the most important and least well-understood pathway in the analysis. It is also the largest — the modal experience among non-college completers is persistent disconnection, with 50.4% disconnected in four or five of their first five post-exit years, and the no MN employment record category growing from 28.8% at year 1 to nearly 39% by year 10.</p>
+<p>The variables associated with this pathway are less a set of positive predictors and more an absence of the protective factors that define the other two pathways:</p>
+<p>No CTE engagement is the single strongest predictor of disconnection — no-CTE graduates show nearly 48% no MN employment record rates by year 5, nearly double the rate of CTE concentrators. The disconnected pathway is in many ways defined by the absence of CTE.</p>
+<p>No academic orientation means these graduates also lack the college preparedness signals that route others toward postsecondary or statewide employment. They are neither anchored by CTE nor oriented by academic preparation — they fall between both pathways.</p>
+<p>Demographic concentration matters here in ways it does not in the other pathways. American Indian graduates show 40-47% no MN employment record rates at every annual time point regardless of high school experiences. English learner graduates show elevated and growing absence from Minnesota records. Female non-completers increasingly accumulate in this category over time. Black graduates show persistent no MN record rates that survive all multivariate controls. These are not simply the product of lower CTE engagement or lower academic achievement — they reflect structural barriers that the data identify but cannot fully explain.</p>
+<p>The two disconnection signatures identified in the annual analysis are critically important for understanding this pathway’s internal heterogeneity. Local underutilization — elevated in-region marginal employment among SpEd graduates, economically disadvantaged graduates, low-CTE graduates — is a different problem from geographic absence — elevated no MN record among EL graduates, AI graduates, female graduates, higher achievers. These two groups are both in the disconnected pathway but for fundamentally different reasons, and they require fundamentally different interventions.</p>
+</section>
+<section id="the-relationship-between-pathways" class="level2">
+<h2 class="anchored" data-anchor-id="the-relationship-between-pathways"><strong>The Relationship Between Pathways</strong></h2>
+<p>What makes these three pathways analytically powerful is that they are not simply demographic categories — they are the product of a sequential sorting process that begins in high school and compounds over time. The variables that predict pathway membership are largely determined before graduation, and the data suggest that the sorting is largely irreversible within the observation window. Graduates who enter the disconnected pathway at year 1 are not meaningfully more likely to exit it by year 5 or year 10. The regional employment rates of CTE-engaged graduates are stable across a decade. The academic departure mechanism grows stronger over time rather than self-correcting.</p>
+<p>This raises the most important policy question the data generate: if the sorting is largely complete by graduation, and if the disconnected pathway is the modal experience among non-college completers, then the intervention window is high school — and specifically the decision about whether and how deeply to engage students in CTE programming before they exit formal education entirely.</p>
 
 
+</section>
 </section>
 
 </main> <!-- /main -->
