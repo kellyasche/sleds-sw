@@ -1914,7 +1914,7 @@ saveWorkbook(wb, "Data/Claude/analysis_post_secondary_pathways_ct/ps-grad-Instit
 
 <br>
 
-# `ps.grad.location` 
+# `ps.grad.location`
 
 ## Summary
 
@@ -2007,7 +2007,7 @@ tab_xtab(var.row = data$ps.grad.location,
          file = "Data/Claude/analysis_post_secondary_pathways_ct/ps-grad-location/Demographics/Gender.html")
 ```
 
-### `economic.status` 
+### `economic.status`
 
 ```{r}
 
@@ -2018,7 +2018,7 @@ tab_xtab(var.row = data$ps.grad.location,
          file = "Data/Claude/analysis_post_secondary_pathways_ct/ps-grad-location/Demographics/economic-status.html")
 ```
 
-### `RaceEthnicity` 
+### `RaceEthnicity`
 
 ```{r}
 race.data <- data %>%
@@ -2031,7 +2031,7 @@ tab_xtab(var.row = race.data$ps.grad.location,
          file = "Data/Claude/analysis_post_secondary_pathways_ct/ps-grad-location/Demographics/RaceEthnicity.html")
 ```
 
-### `SpecialEdStatus` 
+### `SpecialEdStatus`
 
 ```{r}
 tab_xtab(var.row = data$ps.grad.location,
@@ -2085,7 +2085,7 @@ tab_xtab(var.row = data$ps.grad.location,
 **Summary** High school characteristics and labor market variables show their most noteworthy geographic associations for this outcome, particularly EDR. The EDR association (Cramer's V=0.179) is the strongest geographic predictor observed across the entire postsecondary pathway analysis, revealing meaningful differences in where completers from different subregions of Southwest Minnesota graduate. EDR 8 Southwest completers show a particularly high out-of-state graduation rate (40.8%) while EDR 6W Upper Minnesota Valley completers show a high in-Minnesota graduation rate (46.9%), and EDR 6E Southwest Central shows the strongest regional retention (36.0%). The average unemployment rate shows a small but meaningful association with out-of-state graduation, consistent with the pattern that greater economic resources and mobility are associated with out-of-state postsecondary pathways.
 
 ::: panel-tabset
-### `Dem_Desc` 
+### `Dem_Desc`
 
 ```{r}
 tab_xtab(var.row = data$ps.grad.location,
@@ -2105,7 +2105,7 @@ tab_xtab(var.row = data$ps.grad.location,
          file = "Data/Claude/analysis_post_secondary_pathways_ct/ps-grad-location/High school characteristics/edr.html")
 ```
 
-### `avg.unemp.rate` 
+### `avg.unemp.rate`
 
 ```{r}
 summary <- aov(avg.unemp.rate ~ ps.grad.location, data = data)
@@ -2128,7 +2128,7 @@ saveWorkbook(wb, "Data/Claude/analysis_post_secondary_pathways_ct/ps-grad-locati
 
 ```
 
-### `avg.wages.pct.state` 
+### `avg.wages.pct.state`
 
 ```{r}
 summary <- aov(avg.wages.pct.state ~ ps.grad.location, data = data)
@@ -2193,7 +2193,7 @@ tab_xtab(var.row = data$ps.grad.location,
          file = "Data/Claude/analysis_post_secondary_pathways_ct/ps-grad-location/High school accomplishments/took-ACT.html")
 ```
 
-### `ACTCompositeScore` 
+### `ACTCompositeScore`
 
 ```{r}
 summary <- aov(ACTCompositeScore ~ ps.grad.location, data = data)
@@ -2214,7 +2214,7 @@ writeData(wb, "TukeyHSD", tukey_df)
 saveWorkbook(wb, "Data/Claude/analysis_post_secondary_pathways_ct/ps-grad-location/High school accomplishments/ACTCompositeScore.xlsx", overwrite = TRUE)
 ```
 
-### `ap.exam` 
+### `ap.exam`
 
 ```{r}
 tab_xtab(var.row = data$ps.grad.location,
@@ -2224,7 +2224,7 @@ tab_xtab(var.row = data$ps.grad.location,
          file = "Data/Claude/analysis_post_secondary_pathways_ct/ps-grad-location/High school accomplishments/ap-exam.html")
 ```
 
-### `pseo.participant` 
+### `pseo.participant`
 
 ```{r}
 tab_xtab(var.row = data$ps.grad.location,
@@ -2234,7 +2234,7 @@ tab_xtab(var.row = data$ps.grad.location,
          file = "Data/Claude/analysis_post_secondary_pathways_ct/ps-grad-location/High school accomplishments/pseo-participant.html")
 ```
 
-### `cte.achievement` 
+### `cte.achievement`
 
 ```{r}
 tab_xtab(var.row = data$ps.grad.location,
@@ -2244,7 +2244,7 @@ tab_xtab(var.row = data$ps.grad.location,
          file = "Data/Claude/analysis_post_secondary_pathways_ct/ps-grad-location/High school accomplishments/cte-achievement.html")
 ```
 
-### `total.cte.courses.taken` 
+### `total.cte.courses.taken`
 
 ```{r}
 summary <- aov(total.cte.courses.taken ~ ps.grad.location, data = data)
@@ -2266,7 +2266,7 @@ saveWorkbook(wb, "Data/Claude/analysis_post_secondary_pathways_ct/ps-grad-locati
 
 ```
 
-### `MCA.M` 
+### `MCA.M`
 
 ```{r}
 summary <- aov(MCA.M ~ ps.grad.location, data = data)
@@ -2287,7 +2287,7 @@ writeData(wb, "TukeyHSD", tukey_df)
 saveWorkbook(wb, "Data/Claude/analysis_post_secondary_pathways_ct/ps-grad-location/High school accomplishments/MCA-M.xlsx", overwrite = TRUE)
 ```
 
-### `MCA.R` 
+### `MCA.R`
 
 ```{r}
 summary <- aov(MCA.R ~ ps.grad.location, data = data)
@@ -2309,7 +2309,7 @@ saveWorkbook(wb, "Data/Claude/analysis_post_secondary_pathways_ct/ps-grad-locati
 
 ```
 
-### `MCA.S` 
+### `MCA.S`
 
 ```{r}
 summary <- aov(MCA.S ~ ps.grad.location, data = data)

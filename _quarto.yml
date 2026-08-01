@@ -58,10 +58,12 @@ website:
             href: analysis_multivariate_confirmation_analysis.qmd
           - text: Non-college graduates
             href: analysis_non_post_secondary_graduates.qmd
-          - text: Multivariate Confirmation Analysis on non-college grads - Logistic Regression
-            href: analysis_multivariate_confirmation_non_college_grads.qmd
           - text: Further analysis on non-college grads
             href: analysis_non_college_deeper.qmd
+          - text: Multivariate Confirmation Analysis on non-college grads - Logistic Regression
+            href: analysis_multivariate_confirmation_non_college_grads.qmd
+          - text: Multivariate Confirmation Analysis on Persistent Disconnection
+            href: analysis_multivariate_confirmation_disconnection_persistence.qmd
       - text: Summary of the three pathways
         href: summary_pathways.qmd
         

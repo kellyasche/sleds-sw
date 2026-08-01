@@ -140,7 +140,7 @@ Alright, now we are going to determine who graduated. Let's see what this data l
 graduates <- read_csv("Data/SLEDS/Masters/Master-9.csv") %>%
   select(PersonID)
 
-nsccompletions.original <- read_csv('/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Research/FY25-27/FY26/OHE Journey to meaningful employment/Data/CRPD 2 (angelique.workman@state.mn.us)/NSC_Completions.csv') %>%
+nsccompletions.original <- read_csv('/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Research/FY25-27/FY27/OHE Journey to meaningful employment/Data/CRPD 2 (angelique.workman@state.mn.us)/NSC_Completions.csv') %>%
   rename(PersonID = 1) %>%
   mutate(PersonID = as.integer(PersonID),
          OPEID = str_pad(OPEID, width = 8, side = "left", pad = "0"),
@@ -195,7 +195,7 @@ To do this, I will need to import the NSC enrollment data, filter to 2023, and d
 <br>
 
 ```{r confirmed gradauted ps}
-ps.enrollment <- read_csv('/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Research/FY25-27/FY26/OHE Journey to meaningful employment/Data/CRPD 2 (angelique.workman@state.mn.us)/NSC_Enrollments.csv') %>%
+ps.enrollment <- read_csv('/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Research/FY25-27/FY27/OHE Journey to meaningful employment/Data/CRPD 2 (angelique.workman@state.mn.us)/NSC_Enrollments.csv') %>%
   mutate(PersonID = as.integer(PersonID),
          OPEID = str_pad(OPEID, width = 8, side = "left", pad = "0"),
          OPEID.6 = str_sub(OPEID, 1, 6)) %>%
@@ -268,7 +268,7 @@ Next we will determine the sector(s) of the institution(s) from which they gradu
 <br>
 
 ```{r grad institution sector}
-ipeds.original <- read_csv('/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Research/FY25-27/FY26/OHE Journey to meaningful employment/Data/SLEDS/IPEDS/IPEDS.csv') 
+ipeds.original <- read_csv('/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Research/FY25-27/FY27/OHE Journey to meaningful employment/Data/SLEDS/IPEDS/IPEDS.csv') 
 
 ipeds.sector <- ipeds.original %>%
   filter(!is.na(OPEID)) %>%
@@ -324,7 +324,7 @@ I'm going to combine these into just a few categories.
 <br>
 
 ```{r highest credential earned}
-clean.degree <- read_xlsx('/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Research/FY25-27/FY26/OHE Journey to meaningful employment/Data/SLEDS/NSC/NSC_Degree_Title_Cleaned.xlsx', sheet = 1) %>%
+clean.degree <- read_xlsx('/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Research/FY25-27/FY27/OHE Journey to meaningful employment/Data/SLEDS/NSC/NSC_Degree_Title_Cleaned.xlsx', sheet = 1) %>%
   drop_na(`CREDENTIAL_TITLE_REPORTED_TO_NSC`)
 
 highest.credential.code <- nsccompletions.original %>%
@@ -726,7 +726,7 @@ Next we will take a look at the percentage of students that graduated by institu
 <br>
 
 ```{r table grad sector total}
-sectors <- read_xlsx('/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Research/FY25-27/FY26/OHE Journey to meaningful employment/Data/SLEDS/NSC/IPEDS/institution-sectors.xlsx')
+sectors <- read_xlsx('/Users/kellyasche/Library/CloudStorage/GoogleDrive-kasche@ruralmn.org/My Drive/Research/FY25-27/FY27/OHE Journey to meaningful employment/Data/SLEDS/NSC/IPEDS/institution-sectors.xlsx')
 
 grad.sector.total <- master.10 %>%
   group_by(ps.grad.InstitutionSector) %>%
